@@ -12,9 +12,6 @@ const SizeSelector = ({ sizes, selectedSize, onSelect, stock }: SizeSelectorProp
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">Select Size</span>
-        <button className="text-xs text-muted-foreground underline hover:text-foreground transition-colors">
-          Size Guide
-        </button>
       </div>
       <div className="grid grid-cols-6 gap-2">
         {SIZES.map((size) => {

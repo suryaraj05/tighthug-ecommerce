@@ -1,8 +1,11 @@
 import { Link } from 'react-router-dom';
 import { Product, formatPrice } from '@/types/product';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useCartStore } from '@/stores/cartStore';
+import { useWishlistStore } from '@/stores/wishlistStore';
 import { toast } from 'sonner';
+import { Heart } from 'lucide-react';
 
 interface ProductCardProps {
   product: Product;
@@ -10,6 +13,7 @@ interface ProductCardProps {
 
 const ProductCard = ({ product }: ProductCardProps) => {
   const addItem = useCartStore((state) => state.addItem);
+  const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlistStore();
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -31,6 +35,25 @@ const ProductCard = ({ product }: ProductCardProps) => {
     toast.success(`${product.name} added to cart`, {
       description: `Size: ${defaultSize}`,
     });
+  };
+
+  const handleWishlistToggle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (isInWishlist(product.id)) {
+      removeFromWishlist(product.id);
+      toast.success('Removed from wishlist');
+    } else {
+      addToWishlist({
+        productId: product.id,
+        name: product.name,
+        price: product.price,
+        image: product.images[0] || '',
+        category: product.category,
+      });
+      toast.success('Added to wishlist');
+    }
   };
 
   const isInStock = Object.values(product.stock).some((qty) => qty > 0);
@@ -62,6 +85,20 @@ const ProductCard = ({ product }: ProductCardProps) => {
             {product.season}
           </span>
         </div>
+
+        {/* Wishlist Button */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="absolute top-3 right-3 bg-background/80 hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={handleWishlistToggle}
+        >
+          <Heart
+            className={`h-5 w-5 ${
+              isInWishlist(product.id) ? 'fill-red-500 text-red-500' : ''
+            }`}
+          />
+        </Button>
       </div>
 
       <div className="mt-4 space-y-1">
@@ -69,11 +106,34 @@ const ProductCard = ({ product }: ProductCardProps) => {
           <h3 className="font-medium text-sm group-hover:text-muted-foreground transition-colors line-clamp-1">
             {product.name}
           </h3>
-          <span className="text-sm font-semibold whitespace-nowrap">
-            {formatPrice(product.price)}
-          </span>
         </div>
         <p className="text-xs text-muted-foreground">{product.category}</p>
+        <div className="flex items-center gap-2 mt-2">
+          {product.originalPrice && product.originalPrice > product.price ? (
+            <>
+              <span className="text-xs text-muted-foreground line-through">
+                {formatPrice(product.originalPrice)}
+              </span>
+              <span className="text-sm font-semibold">
+                {formatPrice(product.price)}
+              </span>
+              {product.discountPercentage && (
+                <Badge variant="destructive" className="text-xs px-1.5 py-0">
+                  {product.discountPercentage}% OFF
+                </Badge>
+              )}
+            </>
+          ) : (
+            <span className="text-sm font-semibold">
+              {formatPrice(product.price)}
+            </span>
+          )}
+        </div>
+        {(product.isHighlighted || (product.salesCount && product.salesCount > 50)) && (
+          <Badge className="mt-1 text-xs bg-yellow-500 hover:bg-yellow-600">
+            🔥 Popular
+          </Badge>
+        )}
       </div>
     </Link>
   );

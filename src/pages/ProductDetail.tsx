@@ -1,25 +1,224 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import SizeSelector from '@/components/products/SizeSelector';
 import QuantitySelector from '@/components/products/QuantitySelector';
-import ProductGrid from '@/components/products/ProductGrid';
-import { mockProducts, formatPrice } from '@/types/product';
+import ColorVariantSelector from '@/components/products/ColorVariantSelector';
+import ProductCard from '@/components/products/ProductCard';
+import CompactProductCard from '@/components/products/CompactProductCard';
+import ImageGallery from '@/components/products/ImageGallery';
+import { formatPrice } from '@/utils/helpers';
+import { getProductById, getProductsByCategory, Product } from '@/services/productService';
 import { useCartStore } from '@/stores/cartStore';
+import { useWishlistStore } from '@/stores/wishlistStore';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Heart, Share2, Truck, RotateCcw, ShieldCheck } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ArrowLeft, Heart, Share2, Truck, RotateCcw, ShieldCheck, Ruler, Star } from 'lucide-react';
 import { toast } from 'sonner';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import Modal from '@/components/modals/Modal';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { getProductReviews, getProductAverageRating, Review } from '@/services/reviewService';
+import ReviewCard from '@/components/reviews/ReviewCard';
+import ReviewForm from '@/components/reviews/ReviewForm';
+import StarRating from '@/components/reviews/StarRating';
+import ProductDetailSkeleton from '@/components/products/ProductDetailSkeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const addItem = useCartStore((state) => state.addItem);
+  const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlistStore();
 
-  const product = mockProducts.find((p) => p.id === id);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
-  const [selectedImage, setSelectedImage] = useState(0);
+  const [showSizeGuide, setShowSizeGuide] = useState(false);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [ratingStats, setRatingStats] = useState({ average: 0, total: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } });
+  const [loadingReviews, setLoadingReviews] = useState(true);
+
+  useEffect(() => {
+    if (id) {
+      loadProduct();
+      loadReviews();
+    }
+  }, [id]);
+
+  const loadProduct = async () => {
+    if (!id) return;
+
+    setLoading(true);
+    try {
+      const productData = await getProductById(id);
+      if (productData) {
+        setProduct(productData);
+        setSelectedSize(productData.sizes[0] || null);
+        // Set default color variant if available
+        if (productData.variants && productData.variants.length > 0) {
+          setSelectedColor(productData.variants[0].color);
+        }
+
+        // Load related products
+        try {
+          const related = await getProductsByCategory(productData.category);
+          setRelatedProducts(related.filter((p) => p.id !== id).slice(0, 4));
+        } catch (error) {
+          console.error('Failed to load related products:', error);
+        }
+      }
+    } catch (error: any) {
+      toast.error('Failed to load product', {
+        description: error.message,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadReviews = async () => {
+    if (!id) return;
+
+    setLoadingReviews(true);
+    try {
+      const [reviewsData, stats] = await Promise.all([
+        getProductReviews(id, 20),
+        getProductAverageRating(id),
+      ]);
+      setReviews(reviewsData);
+      setRatingStats(stats);
+    } catch (error) {
+      console.error('Failed to load reviews:', error);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  const handleAddToCart = () => {
+    if (!product || !selectedSize) {
+      toast.error('Please select a size');
+      return;
+    }
+
+    // Get variant-specific stock if color is selected
+    let stock = product.stock[selectedSize] || 0;
+    if (selectedColor && product.variants) {
+      const variant = product.variants.find((v) => v.color === selectedColor);
+      if (variant?.stock) {
+        stock = variant.stock[selectedSize] || stock;
+      }
+    }
+
+    if (stock < quantity) {
+      toast.error(`Only ${stock} items available in size ${selectedSize}`);
+      return;
+    }
+
+    // Get variant-specific price if available
+    let price = product.price;
+    if (selectedColor && product.variants) {
+      const variant = product.variants.find((v) => v.color === selectedColor);
+      if (variant?.price) {
+        price = variant.price;
+      }
+    }
+
+    // Get variant-specific images if available
+    let images = product.images;
+    if (selectedColor && product.variants) {
+      const variant = product.variants.find((v) => v.color === selectedColor);
+      if (variant?.images && variant.images.length > 0) {
+        images = variant.images;
+      }
+    }
+
+    addItem({
+      id: product.id,
+      name: `${product.name}${selectedColor ? ` - ${selectedColor}` : ''}`,
+      price,
+      size: selectedSize,
+      quantity,
+      image: images[0] || '',
+      category: product.category,
+    });
+
+    toast.success(`${product.name} added to cart`, {
+      description: `Size: ${selectedSize}${selectedColor ? ` | Color: ${selectedColor}` : ''} | Qty: ${quantity}`,
+      action: {
+        label: 'View Cart',
+        onClick: () => navigate('/cart'),
+      },
+    });
+  };
+
+  const handleWishlistToggle = () => {
+    if (!product) return;
+
+    if (isInWishlist(product.id)) {
+      removeFromWishlist(product.id);
+      toast.success('Removed from wishlist');
+    } else {
+      addToWishlist({
+        productId: product.id,
+        name: product.name,
+        price: product.price,
+        image: product.images[0] || '',
+        category: product.category,
+      });
+      toast.success('Added to wishlist');
+    }
+  };
+
+  const handleShare = async () => {
+    if (!product) return;
+
+    const url = `${window.location.origin}/product/${product.id}`;
+    const text = `Check out ${product.name} on TightHug!`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: product.name,
+          text: text,
+          url: url,
+        });
+        toast.success('Shared successfully!');
+      } catch (error: any) {
+        if (error.name !== 'AbortError') {
+          copyToClipboard(url);
+        }
+      }
+    } else {
+      copyToClipboard(url);
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success('Link copied to clipboard!');
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Navbar />
+        <main className="flex-1">
+          <div className="container py-8">
+            <div className="mb-8">
+              <Skeleton className="h-6 w-32 rounded" />
+            </div>
+            <ProductDetailSkeleton />
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   if (!product) {
     return (
@@ -39,34 +238,21 @@ const ProductDetail = () => {
     );
   }
 
-  const handleAddToCart = () => {
-    if (!selectedSize) {
-      toast.error('Please select a size');
-      return;
+  // Get max quantity based on selected size and color variant
+  const getMaxQuantity = () => {
+    if (!selectedSize) return 0;
+    
+    if (selectedColor && product.variants) {
+      const variant = product.variants.find((v) => v.color === selectedColor);
+      if (variant?.stock) {
+        return variant.stock[selectedSize] || 0;
+      }
     }
-
-    addItem({
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      size: selectedSize,
-      quantity,
-      image: product.images[0],
-      category: product.category,
-    });
-
-    toast.success(`${product.name} added to cart`, {
-      description: `Size: ${selectedSize} | Qty: ${quantity}`,
-      action: {
-        label: 'View Cart',
-        onClick: () => navigate('/cart'),
-      },
-    });
+    
+    return product.stock[selectedSize] || 0;
   };
 
-  const relatedProducts = mockProducts
-    .filter((p) => p.category === product.category && p.id !== product.id)
-    .slice(0, 4);
+  const maxQuantity = getMaxQuantity();
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -85,33 +271,15 @@ const ProductDetail = () => {
 
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-16">
             {/* Image Gallery */}
-            <div className="space-y-4">
-              <div className="aspect-[3/4] bg-secondary overflow-hidden">
-                <img
-                  src={product.images[selectedImage]}
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              {product.images.length > 1 && (
-                <div className="flex gap-2">
-                  {product.images.map((image, index) => (
-                    <button
-                      key={index}
-                      onClick={() => setSelectedImage(index)}
-                      className={`w-20 h-20 bg-secondary overflow-hidden border-2 transition-colors ${
-                        selectedImage === index ? 'border-foreground' : 'border-transparent'
-                      }`}
-                    >
-                      <img
-                        src={image}
-                        alt={`${product.name} ${index + 1}`}
-                        className="w-full h-full object-cover"
-                      />
-                    </button>
-                  ))}
-                </div>
-              )}
+            <div>
+              <ImageGallery 
+                images={
+                  selectedColor && product.variants
+                    ? product.variants.find((v) => v.color === selectedColor)?.images || product.images
+                    : product.images
+                } 
+                productName={product.name} 
+              />
             </div>
 
             {/* Product Info */}
@@ -125,31 +293,106 @@ const ProductDetail = () => {
                     {product.season}
                   </span>
                 </div>
-                <h1 className="text-3xl md:text-4xl font-display font-bold">
-                  {product.name}
-                </h1>
-                <p className="text-2xl font-semibold">{formatPrice(product.price)}</p>
-                <p className="text-muted-foreground leading-relaxed">
-                  {product.description}
-                </p>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <h1 className="text-3xl md:text-4xl font-display font-bold">{product.name}</h1>
+                    <div className="flex items-center gap-3 mt-2">
+                      {product.originalPrice && product.originalPrice > product.price ? (
+                        <>
+                          <span className="text-xl text-muted-foreground line-through">
+                            {formatPrice(product.originalPrice)}
+                          </span>
+                          <span className="text-2xl font-semibold">
+                            {formatPrice(product.price)}
+                          </span>
+                          {product.discountPercentage && (
+                            <Badge variant="destructive" className="text-sm">
+                              {product.discountPercentage}% OFF
+                            </Badge>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-2xl font-semibold">
+                          {formatPrice(product.price)}
+                        </span>
+                      )}
+                    </div>
+                    {(product.isHighlighted || (product.salesCount && product.salesCount > 50)) && (
+                      <Badge className="mt-2 bg-yellow-500 hover:bg-yellow-600">
+                        🔥 Popular Item
+                      </Badge>
+                    )}
+                  </div>
+                  {ratingStats.total > 0 && (
+                    <div className="text-right">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+                        <span className="text-2xl font-bold">{ratingStats.average.toFixed(1)}</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {ratingStats.total} {ratingStats.total === 1 ? 'review' : 'reviews'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <p className="text-muted-foreground leading-relaxed mt-4">{product.description}</p>
               </div>
 
+              {/* Color Variant Selector */}
+              {product.variants && product.variants.length > 0 && (
+                <ColorVariantSelector
+                  variants={product.variants}
+                  selectedColor={selectedColor}
+                  onSelectColor={(color) => {
+                    setSelectedColor(color);
+                    // Update images when color changes
+                    const variant = product.variants?.find((v) => v.color === color);
+                    if (variant?.images && variant.images.length > 0) {
+                      // Update product images temporarily for display
+                      setProduct({
+                        ...product,
+                        images: variant.images,
+                      });
+                    }
+                  }}
+                  productName={product.name}
+                />
+              )}
+
               {/* Size Selector */}
-              <SizeSelector
-                sizes={product.sizes}
-                selectedSize={selectedSize}
-                onSelect={setSelectedSize}
-                stock={product.stock}
-              />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Size</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowSizeGuide(true)}
+                    className="text-xs"
+                  >
+                    <Ruler className="h-3 w-3 mr-1" />
+                    Size Guide
+                  </Button>
+                </div>
+                <SizeSelector
+                  sizes={product.sizes}
+                  selectedSize={selectedSize}
+                  onSelect={setSelectedSize}
+                  stock={
+                    selectedColor && product.variants
+                      ? product.variants.find((v) => v.color === selectedColor)?.stock || product.stock
+                      : product.stock
+                  }
+                />
+              </div>
 
               {/* Quantity */}
               <div className="space-y-3">
                 <span className="text-sm font-medium">Quantity</span>
                 <QuantitySelector
                   quantity={quantity}
-                  onIncrease={() => setQuantity((q) => Math.min(q + 1, 10))}
+                  onIncrease={() => setQuantity((q) => Math.min(q + 1, maxQuantity))}
                   onDecrease={() => setQuantity((q) => Math.max(q - 1, 1))}
-                  max={selectedSize ? product.stock[selectedSize] : 10}
+                  max={maxQuantity}
                 />
               </div>
 
@@ -159,14 +402,21 @@ const ProductDetail = () => {
                   size="lg"
                   className="flex-1"
                   onClick={handleAddToCart}
-                  disabled={!selectedSize}
+                  disabled={!selectedSize || maxQuantity === 0}
                 >
-                  Add to Cart
+                  {maxQuantity === 0 ? 'Out of Stock' : 'Add to Cart'}
                 </Button>
-                <Button size="lg" variant="outline">
-                  <Heart className="h-5 w-5" />
+                <Button
+                  size="lg"
+                  variant="outline"
+                  onClick={handleWishlistToggle}
+                  className={isInWishlist(product.id) ? 'bg-red-50 border-red-200' : ''}
+                >
+                  <Heart
+                    className={`h-5 w-5 ${isInWishlist(product.id) ? 'fill-red-500 text-red-500' : ''}`}
+                  />
                 </Button>
-                <Button size="lg" variant="outline">
+                <Button size="lg" variant="outline" onClick={handleShare}>
                   <Share2 className="h-5 w-5" />
                 </Button>
               </div>
@@ -186,27 +436,143 @@ const ProductDetail = () => {
                   <span>100% authentic products</span>
                 </div>
               </div>
-
-              {/* Reward Coins */}
-              <div className="p-4 bg-secondary">
-                <p className="text-sm">
-                  Earn <span className="font-semibold">{product.rewardCoins} coins</span> on this purchase
-                </p>
-              </div>
             </div>
           </div>
 
-          {/* Related Products */}
+          {/* Reviews Section */}
+          <section className="mt-24 border-t border-border pt-12">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h2 className="text-2xl font-display font-bold mb-2">Customer Reviews</h2>
+                {ratingStats.total > 0 ? (
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <StarRating rating={ratingStats.average} size="md" showValue />
+                      <span className="text-sm text-muted-foreground">
+                        ({ratingStats.total} {ratingStats.total === 1 ? 'review' : 'reviews'})
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No reviews yet. Be the first to review!</p>
+                )}
+              </div>
+            </div>
+
+            {/* Rating Distribution - Compact Card */}
+            {ratingStats.total > 0 && (
+              <div className="mb-6 inline-flex items-center gap-4 p-3 bg-secondary rounded-lg border border-border">
+                <div className="flex flex-col items-center gap-1 min-w-[60px]">
+                  <div className="flex items-center gap-1">
+                    <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                    <span className="text-lg font-bold">{ratingStats.average.toFixed(1)}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{ratingStats.total} {ratingStats.total === 1 ? 'review' : 'reviews'}</span>
+                </div>
+                <div className="flex-1 grid grid-cols-5 gap-2">
+                  {[5, 4, 3, 2, 1].map((star) => {
+                    const count = ratingStats.distribution[star as keyof typeof ratingStats.distribution];
+                    return (
+                      <div key={star} className="flex flex-col items-center gap-0.5">
+                        <span className="text-xs font-medium">{star}</span>
+                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                        <span className="text-xs text-muted-foreground">{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Review Form */}
+            <div className="mb-8">
+              <ReviewForm productId={id!} onReviewSubmitted={loadReviews} />
+            </div>
+
+            {/* Reviews List */}
+            {loadingReviews ? (
+              <div className="flex items-center justify-center py-8">
+                <LoadingSpinner size="sm" />
+              </div>
+            ) : reviews.length > 0 ? (
+              <div className="space-y-6">
+                {reviews.map((review) => (
+                  <ReviewCard key={review.id} review={review} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No reviews yet. Be the first to review this product!</p>
+              </div>
+            )}
+          </section>
+
+          {/* Related Products - Compact */}
           {relatedProducts.length > 0 && (
             <section className="mt-24">
-              <h2 className="text-2xl font-display font-bold mb-8">You May Also Like</h2>
-              <ProductGrid products={relatedProducts} />
+              <h2 className="text-2xl font-display font-bold mb-6">You May Also Like</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+                {relatedProducts.map((product) => (
+                  <CompactProductCard key={product.id} product={product} />
+                ))}
+              </div>
             </section>
           )}
         </div>
       </main>
 
       <Footer />
+
+      {/* Size Guide Modal */}
+      <Modal
+        isOpen={showSizeGuide}
+        onClose={() => setShowSizeGuide(false)}
+        title="Size Guide"
+        size="xl"
+      >
+        <div className="max-h-[70vh] overflow-y-auto space-y-6">
+          <div>
+            <h3 className="font-semibold mb-2">How to Measure</h3>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p><strong>Chest:</strong> Measure around the fullest part of your chest, keeping the tape measure horizontal.</p>
+              <p><strong>Waist:</strong> Measure around your natural waistline, typically the narrowest part of your torso.</p>
+              <p><strong>Length:</strong> For tops, measure from the top of the shoulder down to the desired length.</p>
+            </div>
+          </div>
+          <div>
+            <h3 className="font-semibold mb-3">Size Chart</h3>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Size</TableHead>
+                    <TableHead>Chest</TableHead>
+                    <TableHead>Length</TableHead>
+                    <TableHead>Waist</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {[
+                    { size: 'XS', chest: '34-36"', length: '26"', waist: '28-30"' },
+                    { size: 'S', chest: '36-38"', length: '27"', waist: '30-32"' },
+                    { size: 'M', chest: '38-40"', length: '28"', waist: '32-34"' },
+                    { size: 'L', chest: '40-42"', length: '29"', waist: '34-36"' },
+                    { size: 'XL', chest: '42-44"', length: '30"', waist: '36-38"' },
+                    { size: 'XXL', chest: '44-46"', length: '31"', waist: '38-40"' },
+                  ].map((row) => (
+                    <TableRow key={row.size}>
+                      <TableCell className="font-semibold">{row.size}</TableCell>
+                      <TableCell>{row.chest}</TableCell>
+                      <TableCell>{row.length}</TableCell>
+                      <TableCell>{row.waist}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

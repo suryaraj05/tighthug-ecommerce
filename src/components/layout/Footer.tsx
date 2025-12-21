@@ -20,16 +20,46 @@ const Footer = () => {
           <div className="space-y-4">
             <h3 className="font-display text-sm font-semibold uppercase tracking-wider">Shop</h3>
             <ul className="space-y-2">
-              {['All Products', 'T-Shirts', 'Hoodies', 'Jackets', 'Pants'].map((item) => (
-                <li key={item}>
-                  <Link
-                    to="/"
-                    className="text-sm text-primary-foreground/70 hover:text-primary-foreground transition-colors"
-                  >
-                    {item}
-                  </Link>
-                </li>
-              ))}
+              <li>
+                <Link
+                  to="/shop"
+                  className="text-sm text-primary-foreground/70 hover:text-primary-foreground transition-colors"
+                >
+                  All Products
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/category/t-shirts"
+                  className="text-sm text-primary-foreground/70 hover:text-primary-foreground transition-colors"
+                >
+                  T-Shirts
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/category/hoodies"
+                  className="text-sm text-primary-foreground/70 hover:text-primary-foreground transition-colors"
+                >
+                  Hoodies
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/category/jackets"
+                  className="text-sm text-primary-foreground/70 hover:text-primary-foreground transition-colors"
+                >
+                  Jackets
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/category/pants"
+                  className="text-sm text-primary-foreground/70 hover:text-primary-foreground transition-colors"
+                >
+                  Pants
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -37,16 +67,46 @@ const Footer = () => {
           <div className="space-y-4">
             <h3 className="font-display text-sm font-semibold uppercase tracking-wider">Help</h3>
             <ul className="space-y-2">
-              {['Track Order', 'Returns & Exchanges', 'Shipping Info', 'Size Guide', 'Contact Us'].map((item) => (
-                <li key={item}>
-                  <Link
-                    to="/"
-                    className="text-sm text-primary-foreground/70 hover:text-primary-foreground transition-colors"
-                  >
-                    {item}
-                  </Link>
-                </li>
-              ))}
+              <li>
+                <Link
+                  to="/track-order"
+                  className="text-sm text-primary-foreground/70 hover:text-primary-foreground transition-colors"
+                >
+                  Track Order
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/returns-exchanges"
+                  className="text-sm text-primary-foreground/70 hover:text-primary-foreground transition-colors"
+                >
+                  Returns & Exchanges
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/shipping-info"
+                  className="text-sm text-primary-foreground/70 hover:text-primary-foreground transition-colors"
+                >
+                  Shipping Info
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/size-guide"
+                  className="text-sm text-primary-foreground/70 hover:text-primary-foreground transition-colors"
+                >
+                  Size Guide
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to="/contact"
+                  className="text-sm text-primary-foreground/70 hover:text-primary-foreground transition-colors"
+                >
+                  Contact Us
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -91,10 +151,10 @@ const Footer = () => {
               © {new Date().getFullYear()} TightHug. All rights reserved.
             </p>
             <div className="flex space-x-6">
-              <Link to="/" className="text-xs text-primary-foreground/50 hover:text-primary-foreground transition-colors">
+              <Link to="/privacy-policy" className="text-xs text-primary-foreground/50 hover:text-primary-foreground transition-colors">
                 Privacy Policy
               </Link>
-              <Link to="/" className="text-xs text-primary-foreground/50 hover:text-primary-foreground transition-colors">
+              <Link to="/terms-of-service" className="text-xs text-primary-foreground/50 hover:text-primary-foreground transition-colors">
                 Terms of Service
               </Link>
             </div>

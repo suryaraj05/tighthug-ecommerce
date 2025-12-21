@@ -1,56 +1,95 @@
-import { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import ProductGrid from '@/components/products/ProductGrid';
-import FilterSidebar from '@/components/products/FilterSidebar';
-import { mockProducts, Category, Season } from '@/types/product';
+import Sidebar from '@/components/filters/Sidebar';
+import { getProducts, Product } from '@/services/productService';
 import { Button } from '@/components/ui/button';
-import { SlidersHorizontal, X } from 'lucide-react';
+import { SlidersHorizontal } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import heroImage from '@/assets/hero-image.jpg';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { toast } from 'sonner';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const Index = () => {
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
-  const [selectedSeason, setSelectedSeason] = useState<Season | null>(null);
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 5000]);
-  const [sortBy, setSortBy] = useState<string>('newest');
+  const [searchParams] = useSearchParams();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredProducts = useMemo(() => {
-    let products = [...mockProducts];
+  // Filter states
+  const [categories, setCategories] = useState<string[]>([]);
+  const [seasons, setSeasons] = useState<string[]>([]);
+  const [priceRange, setPriceRange] = useState({ min: 0, max: 10000 });
+  const [sortBy, setSortBy] = useState<'price-asc' | 'price-desc' | 'newest'>('newest');
 
-    // Apply filters
-    if (selectedCategory) {
-      products = products.filter((p) => p.category === selectedCategory);
+  useEffect(() => {
+    loadProducts();
+  }, [categories, seasons, priceRange, sortBy]);
+
+  // Handle URL params
+  useEffect(() => {
+    const category = searchParams.get('category');
+    const season = searchParams.get('season');
+    if (category) setCategories([category]);
+    if (season) setSeasons([season]);
+  }, [searchParams]);
+
+  const loadProducts = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Build filters object - only include non-empty filters
+      const filters: any = {};
+      if (categories.length > 0) {
+        filters.category = categories;
+      }
+      if (seasons.length > 0) {
+        filters.season = seasons;
+      }
+      if (priceRange.min > 0) {
+        filters.priceMin = priceRange.min;
+      }
+      if (priceRange.max < 10000) {
+        filters.priceMax = priceRange.max;
+      }
+
+      const result = await getProducts({
+        filters: Object.keys(filters).length > 0 ? filters : undefined,
+        sort: sortBy,
+        limit: 50,
+      });
+
+      console.log('Products loaded:', result.products.length);
+      setProducts(result.products);
+    } catch (err: any) {
+      console.error('Error loading products:', err);
+      setError(err.message || 'Failed to load products');
+      toast.error('Failed to load products', {
+        description: err.message,
+      });
+    } finally {
+      setLoading(false);
     }
-    if (selectedSeason) {
-      products = products.filter((p) => p.season === selectedSeason);
-    }
-    products = products.filter(
-      (p) => p.price >= priceRange[0] && p.price <= priceRange[1]
-    );
+  };
 
-    // Apply sorting
-    switch (sortBy) {
-      case 'price-asc':
-        products.sort((a, b) => a.price - b.price);
-        break;
-      case 'price-desc':
-        products.sort((a, b) => b.price - a.price);
-        break;
-      case 'newest':
-      default:
-        products.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-        break;
-    }
-
-    return products;
-  }, [selectedCategory, selectedSeason, priceRange, sortBy]);
-
-  const clearAllFilters = () => {
-    setSelectedCategory(null);
-    setSelectedSeason(null);
-    setPriceRange([0, 5000]);
+  const handleFiltersChange = (filters: {
+    categories: string[];
+    seasons: string[];
+    priceRange: { min: number; max: number };
+  }) => {
+    setCategories(filters.categories);
+    setSeasons(filters.seasons);
+    setPriceRange(filters.priceRange);
   };
 
   return (
@@ -64,6 +103,7 @@ const Index = () => {
             src={heroImage}
             alt="TightHug Collection"
             className="absolute inset-0 w-full h-full object-cover"
+            loading="eager"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent" />
           <div className="absolute inset-0 flex items-end">
@@ -78,18 +118,18 @@ const Index = () => {
                   Your Style
                 </h1>
                 <p className="text-lg text-foreground/70 max-w-md">
-                  Premium streetwear designed for comfort and self-expression. 
-                  Quality fabrics, timeless designs.
+                  Premium streetwear designed for comfort and self-expression. Quality fabrics,
+                  timeless designs.
                 </p>
                 <div className="flex gap-4 pt-2">
-                  <Link to="/?category=T-Shirt">
+                  <Link to="/shop">
                     <Button size="lg" className="px-8">
                       Shop Now
                     </Button>
                   </Link>
-                  <Link to="/?category=Hoodie">
+                  <Link to="/new-arrivals">
                     <Button size="lg" variant="outline" className="px-8 bg-background/80 backdrop-blur-sm">
-                      View Hoodies
+                      New Arrivals
                     </Button>
                   </Link>
                 </div>
@@ -106,7 +146,7 @@ const Index = () => {
               <div>
                 <h2 className="text-3xl md:text-4xl font-display font-bold">Shop All</h2>
                 <p className="text-muted-foreground mt-2">
-                  {filteredProducts.length} products
+                  {loading ? 'Loading...' : `${products.length} products`}
                 </p>
               </div>
 
@@ -120,28 +160,26 @@ const Index = () => {
                     </Button>
                   </SheetTrigger>
                   <SheetContent side="left" className="w-[300px] p-6">
-                    <FilterSidebar
-                      selectedCategory={selectedCategory}
-                      setSelectedCategory={setSelectedCategory}
-                      selectedSeason={selectedSeason}
-                      setSelectedSeason={setSelectedSeason}
+                    <Sidebar
+                      categories={categories}
+                      seasons={seasons}
                       priceRange={priceRange}
-                      setPriceRange={setPriceRange}
-                      onClearAll={clearAllFilters}
+                      onFiltersChange={handleFiltersChange}
                     />
                   </SheetContent>
                 </Sheet>
 
                 {/* Sort Dropdown */}
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="h-9 px-3 text-sm border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  <option value="newest">Newest</option>
-                  <option value="price-asc">Price: Low to High</option>
-                  <option value="price-desc">Price: High to Low</option>
-                </select>
+                <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="newest">Newest</SelectItem>
+                    <SelectItem value="price-asc">Price: Low to High</SelectItem>
+                    <SelectItem value="price-desc">Price: High to Low</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -150,21 +188,29 @@ const Index = () => {
               {/* Desktop Sidebar */}
               <div className="hidden lg:block w-64 flex-shrink-0">
                 <div className="sticky top-24">
-                  <FilterSidebar
-                    selectedCategory={selectedCategory}
-                    setSelectedCategory={setSelectedCategory}
-                    selectedSeason={selectedSeason}
-                    setSelectedSeason={setSelectedSeason}
+                  <Sidebar
+                    categories={categories}
+                    seasons={seasons}
                     priceRange={priceRange}
-                    setPriceRange={setPriceRange}
-                    onClearAll={clearAllFilters}
+                    onFiltersChange={handleFiltersChange}
                   />
                 </div>
               </div>
 
               {/* Product Grid */}
               <div className="flex-1">
-                <ProductGrid products={filteredProducts} />
+                {loading ? (
+                  <ProductGrid products={[]} loading={true} />
+                ) : error ? (
+                  <div className="text-center py-16">
+                    <p className="text-red-500">{error}</p>
+                    <Button onClick={loadProducts} className="mt-4">
+                      Retry
+                    </Button>
+                  </div>
+                ) : (
+                  <ProductGrid products={products} loading={false} />
+                )}
               </div>
             </div>
           </div>
