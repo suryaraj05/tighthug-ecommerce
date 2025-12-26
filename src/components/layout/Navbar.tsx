@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { ShoppingBag, Search, Menu, X, User, LogOut, Heart } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
+import tighthugLogo from '@/assets/tighthug_logo.svg';
 import { useCartStore } from '@/stores/cartStore';
 import { useAuthStore } from '@/stores/authStore';
 import { logout } from '@/services/authService';
@@ -91,7 +92,12 @@ const Navbar = () => {
           <SheetContent side="left" className="w-[300px] p-0">
             <div className="flex flex-col h-full">
               <div className="p-6 border-b border-border">
-                <Link to="/" className="font-display text-xl font-bold tracking-tighter">
+                <Link to="/" className="flex items-center gap-2 font-display text-xl font-bold tracking-tighter">
+                  <img 
+                    src={tighthugLogo} 
+                    alt="TightHug Logo" 
+                    className="h-8 w-8"
+                  />
                   TIGHTHUG
                 </Link>
               </div>
@@ -154,8 +160,13 @@ const Navbar = () => {
         </Sheet>
 
         {/* Logo */}
-        <Link to="/" className="font-display text-xl md:text-2xl font-bold tracking-tighter">
-          TIGHTHUG
+        <Link to="/" className="flex items-center gap-2 font-display text-xl md:text-2xl font-bold tracking-tighter">
+          <img 
+            src={tighthugLogo} 
+            alt="TightHug Logo" 
+            className="h-8 w-8 md:h-10 md:w-10"
+          />
+          <span className="hidden sm:inline">TIGHTHUG</span>
         </Link>
 
         {/* Desktop Navigation */}

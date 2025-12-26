@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import CategoryFilter from './CategoryFilter';
 import SeasonFilter from './SeasonFilter';
@@ -29,6 +29,11 @@ const Sidebar = ({ categories, seasons, priceRange, onFiltersChange }: SidebarPr
       priceRange: localPriceRange,
     });
   };
+
+  // Update local price range when prop changes
+  useEffect(() => {
+    setLocalPriceRange(priceRange);
+  }, [priceRange]);
 
   const handleReset = () => {
     setLocalCategories([]);

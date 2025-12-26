@@ -16,7 +16,9 @@ const Login = () => {
   const location = useLocation();
   const { isAdmin } = useAuthStore();
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [usePhone, setUsePhone] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -30,7 +32,10 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      await login({ email, password });
+      await login({ 
+        ...(usePhone ? { phone } : { email }), 
+        password 
+      });
       toast.success('Welcome back!', {
         description: 'You have been logged in successfully.',
       });
@@ -64,20 +69,54 @@ const Login = () => {
               </p>
             </div>
 
+            {/* Toggle */}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant={!usePhone ? 'default' : 'outline'}
+                onClick={() => setUsePhone(false)}
+                className="flex-1"
+              >
+                Use Email
+              </Button>
+              <Button
+                type="button"
+                variant={usePhone ? 'default' : 'outline'}
+                onClick={() => setUsePhone(true)}
+                className="flex-1"
+              >
+                Use Phone
+              </Button>
+            </div>
+
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="you@example.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
+                {usePhone ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone Number</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="+91 9876543210"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      required
+                    />
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">

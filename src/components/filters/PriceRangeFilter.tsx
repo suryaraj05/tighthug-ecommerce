@@ -27,7 +27,7 @@ const PriceRangeFilter = ({ min: initialMin, max: initialMax, onChange }: PriceR
       setRange([newMin, newMax]);
       setMin(newMin);
       setMax(newMax);
-      onChange(newMin, newMax);
+      // Don't call onChange immediately - let user finish dragging or use Apply button
     }
   };
 
@@ -36,7 +36,7 @@ const PriceRangeFilter = ({ min: initialMin, max: initialMax, onChange }: PriceR
     const newRange = [numValue, max];
     setMin(numValue);
     setRange(newRange);
-    onChange(numValue, max);
+    // Don't call onChange immediately - let user finish typing or use Apply button
   };
 
   const handleMaxChange = (value: string) => {
@@ -44,7 +44,7 @@ const PriceRangeFilter = ({ min: initialMin, max: initialMax, onChange }: PriceR
     const newRange = [min, numValue];
     setMax(numValue);
     setRange(newRange);
-    onChange(min, numValue);
+    // Don't call onChange immediately - let user finish typing or use Apply button
   };
 
   return (

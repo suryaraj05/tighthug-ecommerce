@@ -34,6 +34,7 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import IndexHelper from './pages/IndexHelper';
 import Wishlist from './pages/Wishlist';
+import ForgotPassword from './pages/ForgotPassword';
 
 const queryClient = new QueryClient();
 
@@ -72,6 +73,7 @@ const App = () => {
             <Route path="/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/seed-data" element={<SeedData />} />
             
             {/* Footer Pages */}
