@@ -46,7 +46,7 @@ const ColorVariantSelector = ({
             >
               {isSelected && (
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-3 h-3 rounded-full bg-white border border-foreground" />
+                  <div className="w-3 h-3 rounded-full bg-[#E3F2FD] border border-foreground" />
                 </div>
               )}
             </button>

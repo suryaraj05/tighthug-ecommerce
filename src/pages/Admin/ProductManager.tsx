@@ -403,7 +403,7 @@ const ProductManager = () => {
                                   className="w-16 h-16 object-cover rounded"
                                 />
                               ) : (
-                                <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center">
+                                <div className="w-16 h-16 bg-[#BBDEFB] rounded flex items-center justify-center">
                                   <span className="text-xs text-gray-400">No image</span>
                                 </div>
                               )}

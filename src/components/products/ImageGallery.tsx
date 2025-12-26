@@ -11,7 +11,7 @@ const ImageGallery = ({ images, productName = 'Product' }: ImageGalleryProps) =>
 
   if (!images || images.length === 0) {
     return (
-      <div className="w-full aspect-square bg-gray-100 flex items-center justify-center">
+      <div className="w-full aspect-square bg-[#BBDEFB] flex items-center justify-center">
         <span className="text-gray-400">No image available</span>
       </div>
     );
@@ -20,7 +20,7 @@ const ImageGallery = ({ images, productName = 'Product' }: ImageGalleryProps) =>
   return (
     <div className="space-y-4">
       {/* Main Image */}
-      <div className="relative w-full aspect-square overflow-hidden bg-gray-50 group">
+      <div className="relative w-full aspect-square overflow-hidden bg-[#E3F2FD] group">
         <img
           src={images[selectedImage]}
           alt={`${productName} - Image ${selectedImage + 1}`}

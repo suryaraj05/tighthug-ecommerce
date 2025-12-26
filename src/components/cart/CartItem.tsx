@@ -16,7 +16,7 @@ const CartItem = ({ item, onUpdateQuantity, onRemove }: CartItemProps) => {
   return (
     <div className="flex gap-4 py-4 border-b border-gray-200">
       {/* Product Image */}
-      <div className="w-20 h-20 flex-shrink-0 bg-gray-100 overflow-hidden">
+      <div className="w-20 h-20 flex-shrink-0 bg-[#BBDEFB] overflow-hidden">
         <img
           src={item.image}
           alt={item.name}

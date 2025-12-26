@@ -201,7 +201,7 @@ const OrderHistory = () => {
 
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
                       {order.items.slice(0, 4).map((item, index) => (
-                        <div key={index} className="aspect-square bg-gray-100 rounded overflow-hidden">
+                        <div key={index} className="aspect-square bg-[#BBDEFB] rounded overflow-hidden">
                           <img
                             src={item.image}
                             alt={item.name}
@@ -238,7 +238,7 @@ const OrderHistory = () => {
                               return (
                                 <div
                                   key={index}
-                                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-[#E3F2FD] transition-colors"
                                 >
                                   <div className="flex items-center gap-3 flex-1">
                                     {item.image && (

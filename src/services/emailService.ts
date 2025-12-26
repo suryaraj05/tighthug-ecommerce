@@ -145,7 +145,7 @@ export const sendOrderConfirmationEmail = async (
                 <p>Hi ${name},</p>
                 <p>Thank you for your order! We've received your order and will process it shortly.</p>
                 
-                <div style="background: #fff; padding: 20px; border-radius: 4px; margin: 20px 0;">
+                <div style="background: #E3F2FD; padding: 20px; border-radius: 4px; margin: 20px 0;">
                   <h3 style="margin-top: 0;">Order Details</h3>
                   <p><strong>Order ID:</strong> ${orderId}</p>
                   <p><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</p>
@@ -167,7 +167,7 @@ export const sendOrderConfirmationEmail = async (
                 </table>
 
                 ${order.shippingAddress ? `
-                <div style="background: #fff; padding: 20px; border-radius: 4px; margin: 20px 0;">
+                <div style="background: #E3F2FD; padding: 20px; border-radius: 4px; margin: 20px 0;">
                   <h3>Shipping Address</h3>
                   <p>
                     ${order.shippingAddress.street}<br>
@@ -259,7 +259,7 @@ export const sendOrderStatusEmail = async (
                 <p>Hi ${name},</p>
                 <p>${statusInfo.message}</p>
                 
-                <div style="background: #fff; padding: 20px; border-radius: 4px; margin: 20px 0;">
+                <div style="background: #E3F2FD; padding: 20px; border-radius: 4px; margin: 20px 0;">
                   <p><strong>Order ID:</strong> ${orderId}</p>
                   <p><strong>Status:</strong> ${status}</p>
                   ${trackingNumber ? `<p><strong>Tracking Number:</strong> ${trackingNumber}</p>` : ''}

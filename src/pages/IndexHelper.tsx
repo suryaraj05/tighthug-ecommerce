@@ -83,7 +83,7 @@ const IndexHelper = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
+    <div className="min-h-screen bg-[#E3F2FD] py-12">
       <div className="container max-w-4xl">
         <div className="text-center mb-12">
           <h1 className="text-3xl md:text-4xl font-display font-bold mb-4">

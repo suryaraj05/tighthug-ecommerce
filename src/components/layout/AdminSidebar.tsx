@@ -58,7 +58,7 @@ const AdminSidebar = () => {
               className={cn(
                 'flex items-center gap-3 px-4 py-3 rounded-lg transition-colors',
                 isActive
-                  ? 'bg-white text-black'
+                  ? 'bg-[#E3F2FD] text-black'
                   : 'text-gray-300 hover:bg-gray-900 hover:text-white'
               )}
             >

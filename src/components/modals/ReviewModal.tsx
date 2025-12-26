@@ -177,7 +177,7 @@ const ReviewModal = ({
           </div>
         ) : !canReview ? (
           <div className="text-center py-12">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#BBDEFB] mb-4">
               <svg
                 className="w-8 h-8 text-gray-600"
                 fill="none"
@@ -202,7 +202,7 @@ const ReviewModal = ({
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Product Info */}
             {productImage && (
-              <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-4 p-4 bg-[#E3F2FD] rounded-lg">
                 <img
                   src={productImage}
                   alt={productName}

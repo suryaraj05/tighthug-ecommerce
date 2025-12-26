@@ -64,7 +64,7 @@ const Wishlist = () => {
 
           {items.length === 0 ? (
             <div className="text-center py-16">
-              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gray-100 mb-4">
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-[#BBDEFB] mb-4">
                 <Heart className="h-10 w-10 text-gray-400" />
               </div>
               <h2 className="text-2xl font-semibold mb-2">Your wishlist is empty</h2>

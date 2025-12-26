@@ -6,7 +6,7 @@ const ProductDetailSkeleton = () => {
       {/* Image Gallery Skeleton */}
       <div>
         <div className="relative overflow-hidden bg-gradient-to-br from-gray-200 via-gray-100 to-gray-200 aspect-square rounded-lg">
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent -translate-x-full animate-shimmer" />
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#E3F2FD]/60 to-transparent -translate-x-full animate-shimmer" />
           <div className="w-full h-full bg-gray-200" />
         </div>
         {/* Thumbnail skeletons */}
@@ -16,7 +16,7 @@ const ProductDetailSkeleton = () => {
               key={i}
               className="relative overflow-hidden bg-gradient-to-br from-gray-200 via-gray-100 to-gray-200 w-20 h-20 rounded border"
             >
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent -translate-x-full animate-shimmer" />
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#E3F2FD]/60 to-transparent -translate-x-full animate-shimmer" />
             </div>
           ))}
         </div>

@@ -130,7 +130,7 @@ const ReviewForm = ({ productId, onReviewSubmitted }: ReviewFormProps) => {
 
   if (!canReview) {
     return (
-      <div className="border border-border rounded-lg p-8 text-center bg-gradient-to-br from-gray-50 to-white">
+      <div className="border border-border rounded-lg p-8 text-center bg-gradient-to-br from-[#E3F2FD] to-[#BBDEFB]">
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
           <svg
             className="w-8 h-8 text-primary"

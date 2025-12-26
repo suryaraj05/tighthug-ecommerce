@@ -283,7 +283,7 @@ const SeedData = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
+    <div className="min-h-screen bg-[#E3F2FD] py-12">
       <div className="container max-w-4xl">
         <div className="space-y-6">
           <div className="text-center">
@@ -367,8 +367,8 @@ const SeedData = () => {
                             htmlFor={`product-${index}-images`}
                             className={`inline-flex items-center gap-2 px-4 py-2 border rounded cursor-pointer transition-colors ${
                               isUploading
-                                ? 'bg-gray-100 cursor-not-allowed'
-                                : 'bg-white hover:bg-gray-50 border-gray-300'
+                                ? 'bg-[#BBDEFB] cursor-not-allowed'
+                                : 'bg-[#E3F2FD] hover:bg-[#BBDEFB] border-gray-300'
                             }`}
                           >
                             {isUploading ? (
@@ -444,7 +444,7 @@ const SeedData = () => {
 
               <div className="space-y-2">
                 {testCoupons.map((coupon) => (
-                  <div key={coupon.code} className="p-3 bg-gray-50 rounded text-sm">
+                  <div key={coupon.code} className="p-3 bg-[#E3F2FD] rounded text-sm">
                     <div className="font-mono font-bold">{coupon.code}</div>
                     <div className="text-gray-600">{coupon.description}</div>
                   </div>
