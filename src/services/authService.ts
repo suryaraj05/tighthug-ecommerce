@@ -56,14 +56,16 @@ export type PhoneRecaptchaCallbacks = {
 
 /**
  * Visible **compact** reCAPTCHA (more reliable than invisible on many mobile browsers).
- * Do not call `render()` separately — the modular SDK attaches to the container on construction;
- * an extra `render()` can duplicate the widget and break tokens (auth/captcha-check-failed).
+ * The modular `RecaptchaVerifier` constructor does **not** paint the widget — `render()` does.
+ * Without `render()`, the iframe only appears when `verify()` runs (e.g. first `signInWithPhoneNumber`),
+ * which deadlocks UX when the Send button stays disabled until the captcha callback fires.
+ * Calling `render()` once here is correct; repeated calls return the same in-flight promise.
  */
 export const initPhoneRecaptchaVerifier = async (
   containerId: string,
   callbacks?: PhoneRecaptchaCallbacks
 ): Promise<RecaptchaVerifier> => {
-  return new RecaptchaVerifier(auth, containerId, {
+  const verifier = new RecaptchaVerifier(auth, containerId, {
     size: 'compact',
     callback: () => {
       callbacks?.onSolved?.();
@@ -72,6 +74,8 @@ export const initPhoneRecaptchaVerifier = async (
       callbacks?.onExpired?.();
     },
   });
+  await verifier.render();
+  return verifier;
 };
 
 /** User-facing message for Firebase phone / SMS errors (console codes). */
@@ -89,6 +93,8 @@ export const getFirebasePhoneAuthErrorMessage = (error: unknown): string => {
       return 'Too many attempts. Wait a few minutes and try again.';
     case 'auth/captcha-check-failed':
       return 'reCAPTCHA could not verify this device. Complete the checkbox above, wait for the green tick, then tap Send OTP again.';
+    case 'auth/invalid-app-credential':
+      return 'Firebase rejected this request (invalid app credential). In Google Cloud → Credentials, edit your browser API key: allow Identity Toolkit API, and under website restrictions include this origin (e.g. http://localhost:5173). In Firebase → Authentication → Settings → Authorized domains, ensure localhost / your domain is listed. SMS also requires a Blaze plan.';
     case 'auth/quota-exceeded':
       return 'SMS limit reached for this project. Check Firebase billing (Blaze) and SMS quotas.';
     case 'auth/invalid-verification-code':
