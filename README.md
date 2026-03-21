@@ -139,5 +139,5 @@ VITE_CLOUDINARY_UPLOAD_PRESET=
 Proprietary - TightHug
 
 ## Support
-yes
+
 For support, contact: support@tighthug.in
