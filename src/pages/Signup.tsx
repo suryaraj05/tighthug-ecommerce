@@ -17,6 +17,7 @@ import {
   sendPhoneSignInOTP,
   confirmPhoneSignInOTP,
   finalizePhoneSignup,
+  getFirebasePhoneAuthErrorMessage,
 } from '@/services/authService';
 import { Eye, EyeOff } from 'lucide-react';
 import { getPasswordStrength } from '@/utils/validators';
@@ -159,13 +160,13 @@ const Signup = () => {
       const result = await sendPhoneSignInOTP(normalized, recaptchaVerifier);
       setConfirmation(result);
       setCodeSent(true);
-      toast.success('Code sent', {
-        description: 'Check your phone for the SMS code.',
+      toast.success('OTP sent', {
+        description: 'Enter the 6-digit code from your SMS.',
       });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to send code.';
+      const msg = getFirebasePhoneAuthErrorMessage(err);
       setError(msg);
-      toast.error('Could not send code', { description: msg });
+      toast.error('Could not send OTP', { description: msg });
     } finally {
       setIsLoading(false);
     }
@@ -192,7 +193,7 @@ const Signup = () => {
       });
       navigate('/');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Invalid code. Please try again.';
+      const msg = getFirebasePhoneAuthErrorMessage(err);
       setError(msg);
       toast.error('Signup failed', { description: msg });
     } finally {
@@ -255,8 +256,6 @@ const Signup = () => {
               </p>
             </div>
 
-            <div id="recaptcha-container-signup" className="sr-only" aria-hidden />
-
             {signupMode === 'phone' ? (
               <div className="space-y-6">
                 <div className="space-y-4">
@@ -294,6 +293,9 @@ const Signup = () => {
                     </p>
                   </div>
 
+                  {/* Firebase injects invisible reCAPTCHA here — avoid sr-only/aria-hidden (breaks iframe). */}
+                  <div id="recaptcha-container-signup" className="w-full min-h-px" aria-label="reCAPTCHA verification" />
+
                   <div className="flex items-start gap-2">
                     <Checkbox
                       id="terms-phone"
@@ -322,7 +324,7 @@ const Signup = () => {
                       disabled={isLoading || !recaptchaVerifier}
                       onClick={handleSendPhoneOtp}
                     >
-                      {isLoading ? 'Sending…' : 'Send SMS code'}
+                      {isLoading ? 'Sending…' : 'Send OTP'}
                     </Button>
                   ) : (
                     <>

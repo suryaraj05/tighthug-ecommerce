@@ -44,7 +44,44 @@ export const normalizePhoneE164 = (raw: string): string => {
 export const createPhoneRecaptchaVerifier = (containerId: string): RecaptchaVerifier => {
   return new RecaptchaVerifier(auth, containerId, {
     size: 'invisible',
+    callback: () => {
+      /* reCAPTCHA solved; signInWithPhoneNumber can proceed */
+    },
+    'expired-callback': () => {
+      /* User may need to retry send OTP */
+    },
   });
+};
+
+/** User-facing message for Firebase phone / SMS errors (console codes). */
+export const getFirebasePhoneAuthErrorMessage = (error: unknown): string => {
+  const code = (error as { code?: string })?.code;
+  const msg = error instanceof Error ? error.message : String(error);
+  switch (code) {
+    case 'auth/operation-not-allowed':
+      return 'Phone sign-in is not enabled for this app. In Firebase Console → Authentication → Sign-in method, turn on Phone, save, and try again.';
+    case 'auth/invalid-phone-number':
+      return 'Invalid phone number. Include country code (e.g. +91 9876543210).';
+    case 'auth/missing-phone-number':
+      return 'Please enter your phone number.';
+    case 'auth/too-many-requests':
+      return 'Too many attempts. Wait a few minutes and try again.';
+    case 'auth/captcha-check-failed':
+      return 'Verification check failed. Refresh the page and tap Send OTP again.';
+    case 'auth/quota-exceeded':
+      return 'SMS limit reached for this project. Check Firebase billing (Blaze) and SMS quotas.';
+    case 'auth/invalid-verification-code':
+      return 'That code is wrong or expired. Request a new OTP and try again.';
+    case 'auth/code-expired':
+      return 'The code expired. Tap Send OTP to receive a new one.';
+    case 'auth/session-expired':
+      return 'This step timed out. Tap Send OTP again.';
+    default:
+      if (msg.includes('auth/operation-not-allowed')) {
+        return getFirebasePhoneAuthErrorMessage({ code: 'auth/operation-not-allowed' });
+      }
+      return msg || 'Could not send the verification code. Please try again.';
+  }
 };
 
 export const sendPhoneSignInOTP = async (

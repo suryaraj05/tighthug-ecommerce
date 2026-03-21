@@ -16,6 +16,7 @@ import {
   sendPhoneSignInOTP,
   confirmPhoneSignInOTP,
   finalizePhoneLogin,
+  getFirebasePhoneAuthErrorMessage,
 } from '@/services/authService';
 import { useAuthStore } from '@/stores/authStore';
 import { Eye, EyeOff } from 'lucide-react';
@@ -123,13 +124,13 @@ const Login = () => {
       const result = await sendPhoneSignInOTP(normalized, recaptchaVerifier);
       setConfirmation(result);
       setCodeSent(true);
-      toast.success('Code sent', {
-        description: 'Check your phone for the SMS code.',
+      toast.success('OTP sent', {
+        description: 'Enter the 6-digit code from your SMS.',
       });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to send code.';
+      const msg = getFirebasePhoneAuthErrorMessage(err);
       setError(msg);
-      toast.error('Could not send code', { description: msg });
+      toast.error('Could not send OTP', { description: msg });
     } finally {
       setIsLoading(false);
     }
@@ -153,7 +154,7 @@ const Login = () => {
       const redirectTo = useAuthStore.getState().isAdmin ? '/admin' : from;
       navigate(redirectTo, { replace: true });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Invalid code. Please try again.';
+      const msg = getFirebasePhoneAuthErrorMessage(err);
       setError(msg);
       toast.error('Sign-in failed', { description: msg });
     } finally {
@@ -214,12 +215,10 @@ const Login = () => {
                   onClick={() => setPhoneMode('otp')}
                   className="flex-1 text-sm"
                 >
-                  SMS code
+                  OTP
                 </Button>
               </div>
             )}
-
-            <div id="recaptcha-container-login" className="sr-only" aria-hidden />
 
             {usePhone && phoneMode === 'otp' ? (
               <div className="space-y-6">
@@ -240,6 +239,9 @@ const Login = () => {
                     </p>
                   </div>
 
+                  {/* Firebase injects invisible reCAPTCHA here — avoid sr-only/aria-hidden (breaks iframe). */}
+                  <div id="recaptcha-container-login" className="w-full min-h-px" aria-label="reCAPTCHA verification" />
+
                   {!codeSent ? (
                     <Button
                       type="button"
@@ -248,7 +250,7 @@ const Login = () => {
                       disabled={isLoading || !recaptchaVerifier}
                       onClick={handleSendOtp}
                     >
-                      {isLoading ? 'Sending…' : 'Send SMS code'}
+                      {isLoading ? 'Sending…' : 'Send OTP'}
                     </Button>
                   ) : (
                     <>
