@@ -6,25 +6,20 @@ type Props = {
 };
 
 /**
- * Wraps Firebase Phone Auth reCAPTCHA v2 (compact) with a smaller visual footprint.
- * Google’s iframe has a fixed min size; we scale the host down and clip overflow.
+ * Host for Firebase Phone Auth reCAPTCHA v2 (compact). Keep layout minimal: fixed heights,
+ * overflow clipping, and CSS transforms break iframe rendering in several browsers.
  */
 export function RecaptchaPhoneBox({ containerId, className }: Props) {
   return (
     <div
       className={cn(
-        'mx-auto w-full max-w-[300px] overflow-hidden rounded-lg border border-border/70 bg-muted/25',
+        'mx-auto w-full max-w-[320px] rounded-lg border border-border/70 bg-muted/25 px-2 py-3 sm:px-3',
         className
       )}
     >
-      <div className="flex justify-center overflow-hidden px-1 pt-1 pb-0">
-        <div
-          className="inline-block origin-top scale-[0.82] [transform-origin:50%_0%] sm:scale-[0.88]"
-          style={{ marginBottom: '-10px' }}
-        >
-          {/* Standard checkbox width ~302px; scaling keeps it readable but shorter */}
-          <div id={containerId} className="h-[72px] w-[302px] max-w-[100vw] min-w-0 sm:h-[74px]" />
-        </div>
+      <div className="flex justify-center overflow-x-auto">
+        {/* Let Google set iframe size — do not fix height or clip overflow */}
+        <div id={containerId} className="inline-block" />
       </div>
     </div>
   );
