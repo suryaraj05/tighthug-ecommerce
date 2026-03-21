@@ -8,11 +8,11 @@ TightHug is a complete e-commerce solution featuring:
 - Product catalog with advanced filtering and search
 - Shopping cart and checkout system
 - User authentication (Email, Phone, Google OAuth)
-- Order management and tracking
+- Order management and tracking 
 - Admin dashboard for product and order management
 - Review and rating system
 - Wishlist functionality
-- Coupon and discount system
+- Coupon and discount system 
 - Email notifications
 
 ## Technologies Used
