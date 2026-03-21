@@ -150,6 +150,15 @@ Optional:
 
 Phone sign-up uses **invisible reCAPTCHA** (Firebase) and a **hybrid** model: after OTP verification, the app links a synthetic email + password to the same account so users can sign in with **phone + password** (Firestore lookup) without SMS on every login.
 
+#### New domain / debugging `sendVerificationCode` (HTTP 400)
+
+- Add the exact host to **Authorized domains** (e.g. `localhost`, `127.0.0.1`, and your production hostname).
+- In Chrome **Network**, select the failed `accounts:sendVerificationCode` request → **Response** (or **Preview**) and read the error reason (e.g. `INVALID_APP_CREDENTIAL`, `BILLING_DISABLED`, `QUOTA_EXCEEDED`, `API_KEY_INVALID`, `APP_NOT_AUTHORIZED`).
+- **INVALID_APP_CREDENTIAL** / API issues: Web API key in Google Cloud → allow **Identity Toolkit API**; HTTP referrer restrictions must include your dev/prod origins (`http://localhost:5173/*`, etc.).
+- **BILLING_DISABLED**: enable **Blaze** billing for SMS in most regions.
+- **Console note** “Failed to initialize reCAPTCHA Enterprise… v2”: normal if Enterprise is not configured; Firebase falls back to v2. Not an error by itself.
+- The app renders `#recaptcha-container` **in the page** (not `aria-hidden`, not off-screen) for **compact** reCAPTCHA v2. Console lines like `Unrecognized feature: 'private-token'` come from Google’s script and are usually harmless.
+
 ## License
 
 Proprietary - TightHug

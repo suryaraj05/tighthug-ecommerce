@@ -14,11 +14,13 @@ import {
   loginWithGoogle,
   normalizePhoneE164,
   isLikelyIndianMobileE164,
+  isValidE164Phone,
   sendPhoneSignInOTPWithInvisibleRecaptcha,
   confirmPhoneSignInOTP,
   finalizePhoneSignupHybrid,
   getFirebasePhoneAuthErrorMessage,
 } from '@/services/authService';
+import { PhoneRecaptchaHost } from '@/components/auth/PhoneRecaptchaHost';
 import { Eye, EyeOff } from 'lucide-react';
 import { getPasswordStrength } from '@/utils/validators';
 import { triggerSuccessConfetti } from '@/utils/confetti';
@@ -73,6 +75,10 @@ const Signup = () => {
     }
     if (normalized.startsWith('+91') && !isLikelyIndianMobileE164(normalized)) {
       setError('Enter a valid 10-digit Indian mobile (digits only, or with +91).');
+      return;
+    }
+    if (!isValidE164Phone(normalized)) {
+      setError('Use E.164 format with country code (e.g. +916281686937).');
       return;
     }
 
@@ -381,8 +387,9 @@ const Signup = () => {
                   </div>
 
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Sending an OTP uses Google invisible reCAPTCHA in the background (no checkbox on this screen).
+                    Tap Send OTP, complete the reCAPTCHA below if asked, then SMS is sent. The box must stay visible.
                   </p>
+                  <PhoneRecaptchaHost />
 
                   {!codeSent ? (
                     <Button

@@ -52,14 +52,22 @@ export const isLikelyIndianMobileE164 = (e164: string): boolean => {
   return /^\+91[6-9]\d{9}$/.test(n);
 };
 
-/** Single off-screen container for Firebase invisible phone reCAPTCHA (see Firebase docs). */
+/**
+ * E.164: leading +, country code 1–9, total length 8–15 digits after + (ITU-style check).
+ */
+export const isValidE164Phone = (e164: string): boolean => {
+  const s = e164.trim();
+  return /^\+[1-9]\d{7,14}$/.test(s);
+};
+
+/** Single in-layout container for Firebase phone reCAPTCHA v2 compact (see `PhoneRecaptchaHost`). */
 export const PHONE_RECAPTCHA_CONTAINER_ID = 'recaptcha-container';
 
 let activePhoneRecaptchaVerifier: RecaptchaVerifier | null = null;
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Remove invisible reCAPTCHA host from DOM and clear the last verifier instance. */
+/** Clear the last verifier; does **not** remove the React root `#recaptcha-container` node. */
 export const cleanupPhoneRecaptchaSession = (): void => {
   try {
     activePhoneRecaptchaVerifier?.clear();
@@ -67,7 +75,16 @@ export const cleanupPhoneRecaptchaSession = (): void => {
     /* noop */
   }
   activePhoneRecaptchaVerifier = null;
-  document.getElementById(PHONE_RECAPTCHA_CONTAINER_ID)?.remove();
+};
+
+/**
+ * Defer clearing so Google’s reCAPTCHA scripts finish DOM work (avoids
+ * `Cannot read properties of null (reading 'style')` when Identity Toolkit returns 400).
+ */
+const schedulePhoneRecaptchaCleanup = (ms = 400): void => {
+  window.setTimeout(() => {
+    cleanupPhoneRecaptchaSession();
+  }, ms);
 };
 
 /**
@@ -82,84 +99,104 @@ export const syntheticEmailFromPhoneE164 = (e164: string): string => {
 };
 
 /**
- * Send SMS OTP using **invisible** reCAPTCHA: container on `document.body`, recreated each attempt.
- * Pattern: cleanup → delay → new verifier → render → delay → `signInWithPhoneNumber`.
+ * Send SMS OTP with Firebase **compact** reCAPTCHA v2 (visible checkbox).
+ * Invisible mode + Enterprise→v2 fallback often causes DOM races (`null.style` in recaptcha__en.js).
+ * `signInWithPhoneNumber` waits for the user to complete the checkbox/challenge (user gesture from Send OTP).
+ *
+ * Host: `PhoneRecaptchaHost` — must stay in layout (no aria-hidden on ancestors).
  */
-export const sendPhoneSignInOTPWithInvisibleRecaptcha = async (
+export const sendPhoneSignInOTPWithRecaptcha = async (
   phoneE164: string
 ): Promise<ConfirmationResult> => {
+  const normalized = phoneE164.trim();
+  if (!isValidE164Phone(normalized)) {
+    throw new Error(
+      'Invalid phone: use E.164 with country code only (e.g. +916281686937).'
+    );
+  }
+
+  if (import.meta.env.DEV) {
+    console.info('[PhoneAuth] signInWithPhoneNumber', { phoneE164: normalized });
+  }
+
+  const host = document.getElementById(PHONE_RECAPTCHA_CONTAINER_ID);
+  if (!host) {
+    throw new Error(
+      'reCAPTCHA container is missing. Ensure PhoneRecaptchaHost is rendered above Send OTP.'
+    );
+  }
+
   cleanupPhoneRecaptchaSession();
   await delay(100);
 
-  const host = document.createElement('div');
-  host.id = PHONE_RECAPTCHA_CONTAINER_ID;
-  host.setAttribute('aria-hidden', 'true');
-  Object.assign(host.style, {
-    position: 'fixed',
-    left: '-9999px',
-    top: '0',
-    width: '1px',
-    height: '1px',
-    overflow: 'hidden',
-    opacity: '0',
-    pointerEvents: 'none',
-  });
-  document.body.appendChild(host);
+  while (host.firstChild) {
+    host.removeChild(host.firstChild);
+  }
 
   const verifier = new RecaptchaVerifier(auth, PHONE_RECAPTCHA_CONTAINER_ID, {
-    size: 'invisible',
+    size: 'compact',
     callback: () => {
-      /* token flow handled by signInWithPhoneNumber */
+      /* optional; token consumed by signInWithPhoneNumber */
     },
     'expired-callback': () => {
-      /* user can tap Send OTP again */
+      /* user taps Send OTP again */
     },
   });
   activePhoneRecaptchaVerifier = verifier;
 
   try {
     await verifier.render();
-    await delay(500);
-    return await signInWithPhoneNumber(auth, phoneE164, verifier);
+    await delay(300);
+    return await signInWithPhoneNumber(auth, normalized, verifier);
   } finally {
-    cleanupPhoneRecaptchaSession();
+    schedulePhoneRecaptchaCleanup(400);
   }
 };
 
-/** User-facing message for Firebase phone / SMS errors (console codes). */
+/** @deprecated Alias — implementation uses compact v2, not invisible. */
+export const sendPhoneSignInOTPWithInvisibleRecaptcha = sendPhoneSignInOTPWithRecaptcha;
+
+/** Raw Firebase `code` if present (e.g. `auth/invalid-app-credential`). */
+export const getFirebaseAuthErrorCode = (error: unknown): string | undefined =>
+  (error as { code?: string })?.code;
+
+/** User-facing line plus optional code for debugging (Network tab shows full JSON). */
 export const getFirebasePhoneAuthErrorMessage = (error: unknown): string => {
-  const code = (error as { code?: string })?.code;
+  const code = getFirebaseAuthErrorCode(error);
   const msg = error instanceof Error ? error.message : String(error);
+  const suffix = code ? ` (${code})` : '';
+
   switch (code) {
     case 'auth/operation-not-allowed':
-      return 'Phone sign-in is not enabled for this app. In Firebase Console → Authentication → Sign-in method, turn on Phone, save, and try again.';
+      return `Phone sign-in is not enabled for this app. In Firebase Console → Authentication → Sign-in method, turn on Phone, save, and try again.${suffix}`;
     case 'auth/invalid-phone-number':
-      return 'Invalid phone number. Include country code (e.g. +91 9876543210).';
+      return `Invalid phone number. Use E.164 with country code (e.g. +919876543210).${suffix}`;
     case 'auth/missing-phone-number':
-      return 'Please enter your phone number.';
+      return `Please enter your phone number.${suffix}`;
     case 'auth/too-many-requests':
-      return 'Too many attempts. Wait a few minutes and try again.';
+      return `Too many attempts. Wait a few minutes and try again.${suffix}`;
     case 'auth/captcha-check-failed':
-      return 'reCAPTCHA could not verify this device. Wait a moment and tap Send OTP again.';
+      return `reCAPTCHA could not verify this device. Wait a moment and tap Send OTP again.${suffix}`;
     case 'auth/invalid-app-credential':
-      return 'Firebase rejected this request (invalid app credential). In Google Cloud → Credentials, edit your browser API key: allow Identity Toolkit API, and under website restrictions include this origin (e.g. http://localhost:5173). In Firebase → Authentication → Settings → Authorized domains, ensure localhost / your domain is listed. SMS also requires a Blaze plan.';
+      return `Firebase rejected this request (invalid app credential). Check: Google Cloud → Credentials → browser API key allows Identity Toolkit API; HTTP referrers include this origin; Firebase → Authorized domains; Blaze for SMS.${suffix}`;
     case 'auth/quota-exceeded':
-      return 'SMS limit reached for this project. Check Firebase billing (Blaze) and SMS quotas.';
+      return `SMS limit reached for this project. Check Firebase billing (Blaze) and SMS quotas.${suffix}`;
     case 'auth/invalid-verification-code':
-      return 'That code is wrong or expired. Request a new OTP and try again.';
+      return `That code is wrong or expired. Request a new OTP and try again.${suffix}`;
     case 'auth/code-expired':
-      return 'The code expired. Tap Send OTP to receive a new one.';
+      return `The code expired. Tap Send OTP to receive a new one.${suffix}`;
     case 'auth/session-expired':
-      return 'This step timed out. Tap Send OTP again.';
+      return `This step timed out. Tap Send OTP again.${suffix}`;
     case 'auth/credential-already-in-use':
-      return 'This phone is already linked to another sign-in method. Try logging in instead.';
+      return `This phone is already linked to another sign-in method. Try logging in instead.${suffix}`;
     case 'auth/email-already-in-use':
-      return 'This account could not be linked. Try logging in or use a different number.';
+      return `This account could not be linked. Try logging in or use a different number.${suffix}`;
     default:
       if (msg.includes('auth/operation-not-allowed')) {
         return getFirebasePhoneAuthErrorMessage({ code: 'auth/operation-not-allowed' });
       }
-      return msg || 'Could not send the verification code. Please try again.';
+      const base = msg || 'Could not send the verification code. Please try again.';
+      return code ? `${base}${suffix}` : base;
   }
 };
 
