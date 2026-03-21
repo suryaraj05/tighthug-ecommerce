@@ -81,9 +81,11 @@ const Signup = () => {
   }, [signupMode, formData.phone]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const key = e.target.name as keyof typeof formData;
+    if (!(key in formData)) return;
     setFormData((prev) => ({
       ...prev,
-      [e.target.id]: e.target.value,
+      [key]: e.target.value,
     }));
   };
 
@@ -210,29 +212,47 @@ const Signup = () => {
               <p className="text-muted-foreground">Join TightHug for exclusive offers and rewards</p>
             </div>
 
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant={signupMode === 'email' ? 'default' : 'outline'}
-                onClick={() => {
-                  setSignupMode('email');
-                  setError(null);
-                }}
-                className="flex-1"
-              >
-                Email & password
-              </Button>
-              <Button
-                type="button"
-                variant={signupMode === 'phone' ? 'default' : 'outline'}
-                onClick={() => {
-                  setSignupMode('phone');
-                  setError(null);
-                }}
-                className="flex-1"
-              >
-                Phone (SMS code)
-              </Button>
+            <div className="space-y-3">
+              <p className="text-center text-sm font-medium text-foreground">How do you want to sign up?</p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={signupMode === 'email' ? 'default' : 'outline'}
+                  onClick={() => {
+                    setSignupMode('email');
+                    setError(null);
+                    setFormData((prev) => ({
+                      ...prev,
+                      phone: '',
+                    }));
+                  }}
+                  className="flex-1"
+                >
+                  Email & password
+                </Button>
+                <Button
+                  type="button"
+                  variant={signupMode === 'phone' ? 'default' : 'outline'}
+                  onClick={() => {
+                    setSignupMode('phone');
+                    setError(null);
+                    setFormData((prev) => ({
+                      ...prev,
+                      email: '',
+                      password: '',
+                      confirmPassword: '',
+                    }));
+                  }}
+                  className="flex-1"
+                >
+                  Phone number
+                </Button>
+              </div>
+              <p className="text-center text-xs text-muted-foreground leading-relaxed px-1">
+                {signupMode === 'email'
+                  ? 'Use your email and a password. Phone is optional (for order SMS).'
+                  : 'No email needed. We will send a 6-digit code to your mobile number.'}
+              </p>
             </div>
 
             <div id="recaptcha-container-signup" className="sr-only" aria-hidden />
@@ -241,10 +261,12 @@ const Signup = () => {
               <div className="space-y-6">
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
+                    <Label htmlFor="signup-phone-name">Full Name</Label>
                     <Input
-                      id="name"
+                      id="signup-phone-name"
+                      name="name"
                       type="text"
+                      autoComplete="name"
                       placeholder="John Doe"
                       value={formData.name}
                       onChange={handleChange}
@@ -254,10 +276,13 @@ const Signup = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number</Label>
+                    <Label htmlFor="signup-phone-number">Mobile number</Label>
                     <Input
-                      id="phone"
+                      id="signup-phone-number"
+                      name="phone"
                       type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
                       placeholder="+91 9876543210"
                       value={formData.phone}
                       onChange={handleChange}
@@ -279,11 +304,11 @@ const Signup = () => {
                     />
                     <Label htmlFor="terms-phone" className="text-sm font-normal leading-relaxed cursor-pointer">
                       I agree to the{' '}
-                      <Link to="/terms" className="underline hover:text-muted-foreground">
+                      <Link to="/terms-of-service" className="underline hover:text-muted-foreground">
                         Terms of Service
                       </Link>{' '}
                       and{' '}
-                      <Link to="/privacy" className="underline hover:text-muted-foreground">
+                      <Link to="/privacy-policy" className="underline hover:text-muted-foreground">
                         Privacy Policy
                       </Link>
                     </Label>
@@ -348,10 +373,12 @@ const Signup = () => {
               <form onSubmit={handleEmailSubmit} className="space-y-6">
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Full Name</Label>
+                    <Label htmlFor="signup-email-name">Full Name</Label>
                     <Input
-                      id="name"
+                      id="signup-email-name"
+                      name="name"
                       type="text"
+                      autoComplete="name"
                       placeholder="John Doe"
                       value={formData.name}
                       onChange={handleChange}
@@ -360,10 +387,13 @@ const Signup = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="signup-email">Email address</Label>
                     <Input
-                      id="email"
+                      id="signup-email"
+                      name="email"
                       type="email"
+                      inputMode="email"
+                      autoComplete="email"
                       placeholder="you@example.com"
                       value={formData.email}
                       onChange={handleChange}
@@ -372,23 +402,32 @@ const Signup = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number</Label>
+                    <Label htmlFor="signup-email-phone" className="text-muted-foreground">
+                      Phone number <span className="font-normal">(optional)</span>
+                    </Label>
                     <Input
-                      id="phone"
+                      id="signup-email-phone"
+                      name="phone"
                       type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
                       placeholder="+91 9876543210"
                       value={formData.phone}
                       onChange={handleChange}
-                      required
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Add a number if you want SMS updates on orders. Not required to create your account.
+                    </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="signup-password">Password</Label>
                     <div className="relative">
                       <Input
-                        id="password"
+                        id="signup-password"
+                        name="password"
                         type={showPassword ? 'text' : 'password'}
+                        autoComplete="new-password"
                         placeholder="••••••••"
                         value={formData.password}
                         onChange={handleChange}
@@ -428,11 +467,13 @@ const Signup = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm Password</Label>
+                    <Label htmlFor="signup-confirm-password">Confirm Password</Label>
                     <div className="relative">
                       <Input
-                        id="confirmPassword"
+                        id="signup-confirm-password"
+                        name="confirmPassword"
                         type={showConfirmPassword ? 'text' : 'password'}
+                        autoComplete="new-password"
                         placeholder="••••••••"
                         value={formData.confirmPassword}
                         onChange={handleChange}
@@ -460,11 +501,11 @@ const Signup = () => {
                     />
                     <Label htmlFor="terms" className="text-sm font-normal leading-relaxed cursor-pointer">
                       I agree to the{' '}
-                      <Link to="/terms" className="underline hover:text-muted-foreground">
+                      <Link to="/terms-of-service" className="underline hover:text-muted-foreground">
                         Terms of Service
                       </Link>{' '}
                       and{' '}
-                      <Link to="/privacy" className="underline hover:text-muted-foreground">
+                      <Link to="/privacy-policy" className="underline hover:text-muted-foreground">
                         Privacy Policy
                       </Link>
                     </Label>
