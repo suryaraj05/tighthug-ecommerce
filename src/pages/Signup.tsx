@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { ConfirmationResult, RecaptchaVerifier } from 'firebase/auth';
 import Navbar from '@/components/layout/Navbar';
@@ -23,6 +23,7 @@ import {
 import { Eye, EyeOff } from 'lucide-react';
 import { getPasswordStrength } from '@/utils/validators';
 import { triggerSuccessConfetti } from '@/utils/confetti';
+import { RecaptchaPhoneBox } from '@/components/auth/RecaptchaPhoneBox';
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -46,7 +47,75 @@ const Signup = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const sendPhoneOtpRef = useRef<((opts?: { fromCaptcha?: boolean }) => Promise<void>) | undefined>(undefined);
+
   const passwordStrength = getPasswordStrength(formData.password);
+
+  const handleSendPhoneOtp = useCallback(
+    async (opts?: { fromCaptcha?: boolean }) => {
+      if (isLoading || codeSent) return;
+      setError(null);
+
+      if (!formData.name.trim()) {
+        setError('Please enter your name.');
+        return;
+      }
+      if (!agreeTerms) {
+        setError('Please agree to the terms and conditions');
+        toast.error('Please agree to the terms and conditions');
+        return;
+      }
+
+      const normalized = normalizePhoneE164(formData.phone);
+      if (normalized.length < 8) {
+        setError('Enter a valid phone number with country code (e.g. +91…).');
+        return;
+      }
+      if (normalized.startsWith('+91') && !isLikelyIndianMobileE164(normalized)) {
+        setError('Enter a valid 10-digit Indian mobile (digits only, or with +91).');
+        return;
+      }
+      if (!recaptchaVerifier) {
+        setError('Verification is still loading. Try again in a moment.');
+        return;
+      }
+      if (!opts?.fromCaptcha && !recaptchaSolved) {
+        setError('Complete the reCAPTCHA above, then tap Send OTP.');
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const result = await sendPhoneSignInOTP(normalized, recaptchaVerifier);
+        setConfirmation(result);
+        setCodeSent(true);
+        toast.success('OTP sent', {
+          description: 'Enter the 6-digit code from your SMS.',
+        });
+      } catch (err: unknown) {
+        const code = (err as { code?: string })?.code;
+        if (code === 'auth/captcha-check-failed') {
+          setRecaptchaSolved(false);
+        }
+        const msg = getFirebasePhoneAuthErrorMessage(err);
+        setError(msg);
+        toast.error('Could not send OTP', { description: msg });
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [
+      isLoading,
+      codeSent,
+      formData.name,
+      formData.phone,
+      agreeTerms,
+      recaptchaVerifier,
+      recaptchaSolved,
+    ]
+  );
+
+  sendPhoneOtpRef.current = handleSendPhoneOtp;
 
   useEffect(() => {
     if (signupMode !== 'phone') {
@@ -77,7 +146,11 @@ const Signup = () => {
 
         const v = await initPhoneRecaptchaVerifier('recaptcha-container-signup', {
           onSolved: () => {
-            if (!cancelled) setRecaptchaSolved(true);
+            if (cancelled) return;
+            setRecaptchaSolved(true);
+            requestAnimationFrame(() => {
+              void sendPhoneOtpRef.current?.({ fromCaptcha: true });
+            });
           },
           onExpired: () => {
             if (!cancelled) setRecaptchaSolved(false);
@@ -165,54 +238,6 @@ const Signup = () => {
       toast.error('Signup failed', {
         description: errorMessage,
       });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSendPhoneOtp = async () => {
-    setError(null);
-
-    if (!formData.name.trim()) {
-      setError('Please enter your name.');
-      return;
-    }
-    if (!agreeTerms) {
-      setError('Please agree to the terms and conditions');
-      toast.error('Please agree to the terms and conditions');
-      return;
-    }
-
-    const normalized = normalizePhoneE164(formData.phone);
-    if (normalized.length < 8) {
-      setError('Enter a valid phone number with country code (e.g. +91…).');
-      return;
-    }
-    if (normalized.startsWith('+91') && !isLikelyIndianMobileE164(normalized)) {
-      setError('Enter a valid 10-digit Indian mobile (digits only, or with +91).');
-      return;
-    }
-    if (!recaptchaVerifier) {
-      setError('Verification is still loading. Try again in a moment.');
-      return;
-    }
-    if (!recaptchaSolved) {
-      setError('Complete the reCAPTCHA checkbox above, then tap Send OTP.');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const result = await sendPhoneSignInOTP(normalized, recaptchaVerifier);
-      setConfirmation(result);
-      setCodeSent(true);
-      toast.success('OTP sent', {
-        description: 'Enter the 6-digit code from your SMS.',
-      });
-    } catch (err: unknown) {
-      const msg = getFirebasePhoneAuthErrorMessage(err);
-      setError(msg);
-      toast.error('Could not send OTP', { description: msg });
     } finally {
       setIsLoading(false);
     }
@@ -361,12 +386,9 @@ const Signup = () => {
 
                   <div className="space-y-2">
                     <Label className="text-muted-foreground">Verify you are human</Label>
-                    <div
-                      id="recaptcha-container-signup"
-                      className="flex min-h-[130px] w-full justify-center overflow-x-auto rounded-md border border-border bg-muted/30 py-3"
-                    />
+                    <RecaptchaPhoneBox containerId="recaptcha-container-signup" />
                     <p className="text-xs text-muted-foreground">
-                      Tick the box and wait for the green checkmark, then tap Send OTP.
+                      Tick “I’m not a robot”. We send the OTP right after it succeeds — or tap Send OTP.
                     </p>
                   </div>
 
@@ -376,7 +398,7 @@ const Signup = () => {
                       size="lg"
                       className="w-full"
                       disabled={isLoading || !recaptchaVerifier || !recaptchaSolved}
-                      onClick={handleSendPhoneOtp}
+                      onClick={() => void handleSendPhoneOtp()}
                     >
                       {isLoading ? 'Sending…' : 'Send OTP'}
                     </Button>

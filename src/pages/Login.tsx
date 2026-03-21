@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import type { ConfirmationResult, RecaptchaVerifier } from 'firebase/auth';
 import Navbar from '@/components/layout/Navbar';
@@ -22,6 +22,7 @@ import {
 import { useAuthStore } from '@/stores/authStore';
 import { Eye, EyeOff } from 'lucide-react';
 import { triggerSuccessConfetti } from '@/utils/confetti';
+import { RecaptchaPhoneBox } from '@/components/auth/RecaptchaPhoneBox';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -45,6 +46,7 @@ const Login = () => {
 
   const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/';
   const recaptchaInstanceRef = useRef<RecaptchaVerifier | null>(null);
+  const sendOtpRef = useRef<((opts?: { fromCaptcha?: boolean }) => Promise<void>) | undefined>(undefined);
 
   useEffect(() => {
     if (!usePhone || phoneMode !== 'otp') {
@@ -75,7 +77,11 @@ const Login = () => {
 
         const v = await initPhoneRecaptchaVerifier('recaptcha-container-login', {
           onSolved: () => {
-            if (!cancelled) setRecaptchaSolved(true);
+            if (cancelled) return;
+            setRecaptchaSolved(true);
+            requestAnimationFrame(() => {
+              void sendOtpRef.current?.({ fromCaptcha: true });
+            });
           },
           onExpired: () => {
             if (!cancelled) setRecaptchaSolved(false);
@@ -146,42 +152,52 @@ const Login = () => {
     }
   };
 
-  const handleSendOtp = async () => {
-    setError(null);
-    const normalized = normalizePhoneE164(phone);
-    if (normalized.length < 8) {
-      setError('Enter a valid phone number with country code (e.g. +91…).');
-      return;
-    }
-    if (normalized.startsWith('+91') && !isLikelyIndianMobileE164(normalized)) {
-      setError('Enter a valid 10-digit Indian mobile (digits only, or with +91).');
-      return;
-    }
-    if (!recaptchaVerifier) {
-      setError('Verification is still loading. Try again in a moment.');
-      return;
-    }
-    if (!recaptchaSolved) {
-      setError('Complete the reCAPTCHA checkbox above, then tap Send OTP.');
-      return;
-    }
+  const handleSendOtp = useCallback(
+    async (opts?: { fromCaptcha?: boolean }) => {
+      if (isLoading || codeSent) return;
+      setError(null);
+      const normalized = normalizePhoneE164(phone);
+      if (normalized.length < 8) {
+        setError('Enter a valid phone number with country code (e.g. +91…).');
+        return;
+      }
+      if (normalized.startsWith('+91') && !isLikelyIndianMobileE164(normalized)) {
+        setError('Enter a valid 10-digit Indian mobile (digits only, or with +91).');
+        return;
+      }
+      if (!recaptchaVerifier) {
+        setError('Verification is still loading. Try again in a moment.');
+        return;
+      }
+      if (!opts?.fromCaptcha && !recaptchaSolved) {
+        setError('Complete the reCAPTCHA checkbox above, then tap Send OTP.');
+        return;
+      }
 
-    setIsLoading(true);
-    try {
-      const result = await sendPhoneSignInOTP(normalized, recaptchaVerifier);
-      setConfirmation(result);
-      setCodeSent(true);
-      toast.success('OTP sent', {
-        description: 'Enter the 6-digit code from your SMS.',
-      });
-    } catch (err: unknown) {
-      const msg = getFirebasePhoneAuthErrorMessage(err);
-      setError(msg);
-      toast.error('Could not send OTP', { description: msg });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      setIsLoading(true);
+      try {
+        const result = await sendPhoneSignInOTP(normalized, recaptchaVerifier);
+        setConfirmation(result);
+        setCodeSent(true);
+        toast.success('OTP sent', {
+          description: 'Enter the 6-digit code from your SMS.',
+        });
+      } catch (err: unknown) {
+        const code = (err as { code?: string })?.code;
+        if (code === 'auth/captcha-check-failed') {
+          setRecaptchaSolved(false);
+        }
+        const msg = getFirebasePhoneAuthErrorMessage(err);
+        setError(msg);
+        toast.error('Could not send OTP', { description: msg });
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [isLoading, codeSent, phone, recaptchaVerifier, recaptchaSolved]
+  );
+
+  sendOtpRef.current = handleSendOtp;
 
   const handleVerifyOtp = async () => {
     if (!confirmation || otp.replace(/\D/g, '').length < 6) {
@@ -288,12 +304,9 @@ const Login = () => {
 
                   <div className="space-y-2">
                     <Label className="text-muted-foreground">Verify you are human</Label>
-                    <div
-                      id="recaptcha-container-login"
-                      className="flex min-h-[130px] w-full justify-center overflow-x-auto rounded-md border border-border bg-muted/30 py-3"
-                    />
+                    <RecaptchaPhoneBox containerId="recaptcha-container-login" />
                     <p className="text-xs text-muted-foreground">
-                      Tick the box and wait for the green checkmark, then tap Send OTP.
+                      Tick “I’m not a robot”. We send the OTP right after it succeeds — or tap Send OTP.
                     </p>
                   </div>
 
@@ -303,7 +316,7 @@ const Login = () => {
                       size="lg"
                       className="w-full"
                       disabled={isLoading || !recaptchaVerifier || !recaptchaSolved}
-                      onClick={handleSendOtp}
+                      onClick={() => void handleSendOtp()}
                     >
                       {isLoading ? 'Sending…' : 'Send OTP'}
                     </Button>

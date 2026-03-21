@@ -55,14 +55,15 @@ export type PhoneRecaptchaCallbacks = {
 };
 
 /**
- * Visible **compact** reCAPTCHA (more reliable than invisible on mobile / Safari / emulators).
- * Call after the container element exists in the DOM. Resolves after `render()`.
+ * Visible **compact** reCAPTCHA (more reliable than invisible on many mobile browsers).
+ * Do not call `render()` separately — the modular SDK attaches to the container on construction;
+ * an extra `render()` can duplicate the widget and break tokens (auth/captcha-check-failed).
  */
 export const initPhoneRecaptchaVerifier = async (
   containerId: string,
   callbacks?: PhoneRecaptchaCallbacks
 ): Promise<RecaptchaVerifier> => {
-  const verifier = new RecaptchaVerifier(auth, containerId, {
+  return new RecaptchaVerifier(auth, containerId, {
     size: 'compact',
     callback: () => {
       callbacks?.onSolved?.();
@@ -71,17 +72,6 @@ export const initPhoneRecaptchaVerifier = async (
       callbacks?.onExpired?.();
     },
   });
-
-  const withRender = verifier as RecaptchaVerifier & { render?: () => Promise<number> };
-  if (typeof withRender.render === 'function') {
-    try {
-      await withRender.render();
-    } catch {
-      /* Some SDK builds render on construction; ignore duplicate render */
-    }
-  }
-
-  return verifier;
 };
 
 /** User-facing message for Firebase phone / SMS errors (console codes). */
