@@ -14,7 +14,7 @@ TightHug is a complete e-commerce solution featuring:
 - Wishlist functionality
 - Coupon and discount system 
 - Email notifications
-
+- 
 ## Technologies Used
 
 This project is built with:
