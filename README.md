@@ -3,7 +3,7 @@
 A modern, full-featured e-commerce platform built for TightHug, offering premium streetwear products with a seamless shopping experience.
 
 ## Project Overview
-
+ 
 TightHug is a complete e-commerce solution featuring:
 - Product catalog with advanced filtering and search
 - Shopping cart and checkout system
