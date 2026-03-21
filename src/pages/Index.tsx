@@ -9,7 +9,7 @@ import { getProducts, Product } from '@/services/productService';
 import { Button } from '@/components/ui/button';
 import { SlidersHorizontal } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import heroImage from '@/assets/hero-image.jpg';
+import heroImage from '@/assets/tighthug-hero-image.png';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { toast } from 'sonner';
 import {

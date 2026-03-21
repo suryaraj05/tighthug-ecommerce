@@ -121,7 +121,7 @@ src/
 
 ## Environment Variables
 
-Required environment variables (see `.env.example`):
+Required environment variables (copy from Firebase Console → Project settings → Your apps → Web app):
 
 ```
 VITE_FIREBASE_API_KEY=
@@ -133,6 +133,22 @@ VITE_FIREBASE_APP_ID=
 VITE_CLOUDINARY_CLOUD_NAME=
 VITE_CLOUDINARY_UPLOAD_PRESET=
 ```
+
+Optional:
+
+- `VITE_DEFAULT_PHONE_COUNTRY_CODE` — default `+91` when the user omits `+` on phone fields.
+- `VITE_PHONE_SYNTHETIC_EMAIL_DOMAIN` — domain for hybrid phone sign-up (`phone_{digits}@…`). Default: `phone.tighthug.local`. Used only as Firebase’s email/password identifier (not a real mailbox).
+
+### Phone sign-in (SMS OTP) setup
+
+1. Firebase Console → **Authentication** → **Sign-in method** → enable **Phone** and **Email/Password** (needed to link the synthetic email after OTP).
+2. **Authentication** → **Settings** → **Authorized domains**: add `localhost` and your production host (e.g. `www.tighthug.in`).
+3. For development, add **Phone numbers for testing** (fixed OTP) in the Phone provider settings to avoid real SMS and rate limits.
+4. Real SMS usually requires the **Blaze** plan and proper billing.
+5. In **Google Cloud Console** → **APIs & Services** → **Credentials**, the Web **API key** used in `VITE_FIREBASE_API_KEY` must allow **Identity Toolkit API** (or no API restriction while testing). If the key uses **HTTP referrer** restrictions, include `http://localhost:5173/*` and your production origins.
+6. If you see `auth/invalid-app-credential`, fix API key restrictions and authorized domains before retrying (avoid spamming **Send OTP**).
+
+Phone sign-up uses **invisible reCAPTCHA** (Firebase) and a **hybrid** model: after OTP verification, the app links a synthetic email + password to the same account so users can sign in with **phone + password** (Firestore lookup) without SMS on every login.
 
 ## License
 

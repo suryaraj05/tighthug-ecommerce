@@ -12,6 +12,8 @@ import {
   RecaptchaVerifier,
   ConfirmationResult,
   UserCredential,
+  EmailAuthProvider,
+  linkWithCredential,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp, query, where, getDocs, collection } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
@@ -31,13 +33,16 @@ export interface LoginData {
   password: string;
 }
 
-/** Normalize to E.164: trims spaces; if no leading +, prepends `VITE_DEFAULT_PHONE_COUNTRY_CODE` (default +91). */
+/** Normalize to E.164: strips spaces/slashes; keeps digits after `+`; if no `+`, prepends default country code. */
 export const normalizePhoneE164 = (raw: string): string => {
   const trimmed = raw.trim().replace(/\s/g, '');
   if (!trimmed) return trimmed;
-  if (trimmed.startsWith('+')) return trimmed;
+  if (trimmed.startsWith('+')) {
+    const digits = trimmed.slice(1).replace(/\D/g, '');
+    return `+${digits}`;
+  }
   const code = import.meta.env.VITE_DEFAULT_PHONE_COUNTRY_CODE || '+91';
-  const digits = trimmed.replace(/^0+/, '');
+  const digits = trimmed.replace(/\D/g, '').replace(/^0+/, '');
   return `${code}${digits}`;
 };
 
@@ -47,35 +52,78 @@ export const isLikelyIndianMobileE164 = (e164: string): boolean => {
   return /^\+91[6-9]\d{9}$/.test(n);
 };
 
-export type PhoneRecaptchaCallbacks = {
-  /** User completed the visible reCAPTCHA challenge (compact/normal). */
-  onSolved?: () => void;
-  /** reCAPTCHA expired — user must verify again before Send OTP. */
-  onExpired?: () => void;
+/** Single off-screen container for Firebase invisible phone reCAPTCHA (see Firebase docs). */
+export const PHONE_RECAPTCHA_CONTAINER_ID = 'recaptcha-container';
+
+let activePhoneRecaptchaVerifier: RecaptchaVerifier | null = null;
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Remove invisible reCAPTCHA host from DOM and clear the last verifier instance. */
+export const cleanupPhoneRecaptchaSession = (): void => {
+  try {
+    activePhoneRecaptchaVerifier?.clear();
+  } catch {
+    /* noop */
+  }
+  activePhoneRecaptchaVerifier = null;
+  document.getElementById(PHONE_RECAPTCHA_CONTAINER_ID)?.remove();
 };
 
 /**
- * Visible **compact** reCAPTCHA (more reliable than invisible on many mobile browsers).
- * The modular `RecaptchaVerifier` constructor does **not** paint the widget — `render()` does.
- * Without `render()`, the iframe only appears when `verify()` runs (e.g. first `signInWithPhoneNumber`),
- * which deadlocks UX when the Send button stays disabled until the captcha callback fires.
- * Calling `render()` once here is correct; repeated calls return the same in-flight promise.
+ * Synthetic email for hybrid phone→password accounts (not a real inbox; used as Firebase email/password id).
+ * Must stay stable for the same E.164 number so login-by-phone lookup matches.
  */
-export const initPhoneRecaptchaVerifier = async (
-  containerId: string,
-  callbacks?: PhoneRecaptchaCallbacks
-): Promise<RecaptchaVerifier> => {
-  const verifier = new RecaptchaVerifier(auth, containerId, {
-    size: 'compact',
+export const syntheticEmailFromPhoneE164 = (e164: string): string => {
+  const digits = e164.replace(/\D/g, '');
+  const domain =
+    import.meta.env.VITE_PHONE_SYNTHETIC_EMAIL_DOMAIN || 'phone.tighthug.local';
+  return `phone_${digits}@${domain}`;
+};
+
+/**
+ * Send SMS OTP using **invisible** reCAPTCHA: container on `document.body`, recreated each attempt.
+ * Pattern: cleanup → delay → new verifier → render → delay → `signInWithPhoneNumber`.
+ */
+export const sendPhoneSignInOTPWithInvisibleRecaptcha = async (
+  phoneE164: string
+): Promise<ConfirmationResult> => {
+  cleanupPhoneRecaptchaSession();
+  await delay(100);
+
+  const host = document.createElement('div');
+  host.id = PHONE_RECAPTCHA_CONTAINER_ID;
+  host.setAttribute('aria-hidden', 'true');
+  Object.assign(host.style, {
+    position: 'fixed',
+    left: '-9999px',
+    top: '0',
+    width: '1px',
+    height: '1px',
+    overflow: 'hidden',
+    opacity: '0',
+    pointerEvents: 'none',
+  });
+  document.body.appendChild(host);
+
+  const verifier = new RecaptchaVerifier(auth, PHONE_RECAPTCHA_CONTAINER_ID, {
+    size: 'invisible',
     callback: () => {
-      callbacks?.onSolved?.();
+      /* token flow handled by signInWithPhoneNumber */
     },
     'expired-callback': () => {
-      callbacks?.onExpired?.();
+      /* user can tap Send OTP again */
     },
   });
-  await verifier.render();
-  return verifier;
+  activePhoneRecaptchaVerifier = verifier;
+
+  try {
+    await verifier.render();
+    await delay(500);
+    return await signInWithPhoneNumber(auth, phoneE164, verifier);
+  } finally {
+    cleanupPhoneRecaptchaSession();
+  }
 };
 
 /** User-facing message for Firebase phone / SMS errors (console codes). */
@@ -92,7 +140,7 @@ export const getFirebasePhoneAuthErrorMessage = (error: unknown): string => {
     case 'auth/too-many-requests':
       return 'Too many attempts. Wait a few minutes and try again.';
     case 'auth/captcha-check-failed':
-      return 'reCAPTCHA could not verify this device. Complete the checkbox above, wait for the green tick, then tap Send OTP again.';
+      return 'reCAPTCHA could not verify this device. Wait a moment and tap Send OTP again.';
     case 'auth/invalid-app-credential':
       return 'Firebase rejected this request (invalid app credential). In Google Cloud → Credentials, edit your browser API key: allow Identity Toolkit API, and under website restrictions include this origin (e.g. http://localhost:5173). In Firebase → Authentication → Settings → Authorized domains, ensure localhost / your domain is listed. SMS also requires a Blaze plan.';
     case 'auth/quota-exceeded':
@@ -103,19 +151,16 @@ export const getFirebasePhoneAuthErrorMessage = (error: unknown): string => {
       return 'The code expired. Tap Send OTP to receive a new one.';
     case 'auth/session-expired':
       return 'This step timed out. Tap Send OTP again.';
+    case 'auth/credential-already-in-use':
+      return 'This phone is already linked to another sign-in method. Try logging in instead.';
+    case 'auth/email-already-in-use':
+      return 'This account could not be linked. Try logging in or use a different number.';
     default:
       if (msg.includes('auth/operation-not-allowed')) {
         return getFirebasePhoneAuthErrorMessage({ code: 'auth/operation-not-allowed' });
       }
       return msg || 'Could not send the verification code. Please try again.';
   }
-};
-
-export const sendPhoneSignInOTP = async (
-  phoneE164: string,
-  appVerifier: RecaptchaVerifier
-): Promise<ConfirmationResult> => {
-  return signInWithPhoneNumber(auth, phoneE164, appVerifier);
 };
 
 export const confirmPhoneSignInOTP = async (
@@ -147,53 +192,73 @@ export const finalizePhoneLogin = async (credential: UserCredential): Promise<vo
   useAuthStore.getState().setFirebaseUser(user);
 };
 
-/** After Firebase phone verification on Signup: create profile if missing; otherwise treat as returning user. */
-export const finalizePhoneSignup = async (
+/**
+ * After phone OTP verification on signup: link a synthetic email/password to the same UID,
+ * sign out + sign in with email/password (hybrid model), then write Firestore profile.
+ * Future logins use phone + password via existing `login()` Firestore lookup without SMS each time.
+ */
+export const finalizePhoneSignupHybrid = async (
   credential: UserCredential,
-  name: string
+  name: string,
+  password: string,
+  normalizedPhoneE164: string
 ): Promise<void> => {
   const { user } = credential;
   const userRef = doc(db, 'users', user.uid);
   const existing = await getDoc(userRef);
 
   if (existing.exists()) {
-    const userData = existing.data();
-    useAuthStore.getState().setUser({
-      uid: user.uid,
-      email: user.email || '',
-      name: userData.name || '',
-      phone: userData.phone || user.phoneNumber || '',
-      role: userData.role || 'customer',
-    });
-    useAuthStore.getState().setIsAdmin(userData.role === 'admin');
-    useAuthStore.getState().setFirebaseUser(user);
-    return;
+    await signOut(auth);
+    throw new Error('An account with this phone number already exists. Try signing in instead.');
   }
 
-  const phone = user.phoneNumber || '';
+  const syntheticEmail = syntheticEmailFromPhoneE164(normalizedPhoneE164);
+
+  try {
+    await linkWithCredential(user, EmailAuthProvider.credential(syntheticEmail, password));
+  } catch (err: unknown) {
+    const code = (err as { code?: string })?.code;
+    await signOut(auth);
+    if (code === 'auth/email-already-in-use' || code === 'auth/credential-already-in-use') {
+      throw new Error(
+        'This phone number is already registered. Try signing in with your password instead.'
+      );
+    }
+    throw err;
+  }
+
+  await signOut(auth);
+  await signInWithEmailAndPassword(auth, syntheticEmail, password);
+
+  const finalUser = auth.currentUser;
+  if (!finalUser) {
+    throw new Error('Could not complete sign-in after phone verification.');
+  }
+
   const userData = {
-    uid: user.uid,
-    email: user.email || '',
+    uid: finalUser.uid,
+    email: syntheticEmail,
     name,
-    phone,
+    phone: normalizedPhoneE164,
     role: 'customer',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   };
 
-  await setDoc(userRef, userData);
-
-  await updateProfile(user, { displayName: name });
+  await setDoc(doc(db, 'users', finalUser.uid), userData);
+  await updateProfile(finalUser, { displayName: name });
 
   useAuthStore.getState().setUser({
-    uid: user.uid,
-    email: user.email || '',
+    uid: finalUser.uid,
+    email: syntheticEmail,
     name,
-    phone,
+    phone: normalizedPhoneE164,
     role: 'customer',
   });
-  useAuthStore.getState().setFirebaseUser(user);
+  useAuthStore.getState().setFirebaseUser(finalUser);
   useAuthStore.getState().setIsAdmin(false);
+
+  sendWelcomeEmail(syntheticEmail, name).catch(console.error);
 };
 
 export const signup = async (data: SignupData): Promise<User> => {

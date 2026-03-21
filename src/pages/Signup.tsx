@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import type { ConfirmationResult, RecaptchaVerifier } from 'firebase/auth';
+import type { ConfirmationResult } from 'firebase/auth';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { Button } from '@/components/ui/button';
@@ -14,17 +14,14 @@ import {
   loginWithGoogle,
   normalizePhoneE164,
   isLikelyIndianMobileE164,
-  initPhoneRecaptchaVerifier,
-  sendPhoneSignInOTP,
+  sendPhoneSignInOTPWithInvisibleRecaptcha,
   confirmPhoneSignInOTP,
-  finalizePhoneSignup,
+  finalizePhoneSignupHybrid,
   getFirebasePhoneAuthErrorMessage,
 } from '@/services/authService';
 import { Eye, EyeOff } from 'lucide-react';
 import { getPasswordStrength } from '@/utils/validators';
 import { triggerSuccessConfetti } from '@/utils/confetti';
-import { RecaptchaPhoneBox } from '@/components/auth/RecaptchaPhoneBox';
-
 const Signup = () => {
   const navigate = useNavigate();
   const [signupMode, setSignupMode] = useState<'email' | 'phone'>('email');
@@ -38,153 +35,71 @@ const Signup = () => {
   const [otp, setOtp] = useState('');
   const [codeSent, setCodeSent] = useState(false);
   const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
-  const [recaptchaVerifier, setRecaptchaVerifier] = useState<RecaptchaVerifier | null>(null);
-  const [recaptchaSolved, setRecaptchaSolved] = useState(false);
-  const recaptchaInstanceRef = useRef<RecaptchaVerifier | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const sendPhoneOtpRef = useRef<((opts?: { fromCaptcha?: boolean }) => Promise<void>) | undefined>(undefined);
-
   const passwordStrength = getPasswordStrength(formData.password);
 
-  const handleSendPhoneOtp = useCallback(
-    async (opts?: { fromCaptcha?: boolean }) => {
-      if (isLoading || codeSent) return;
-      setError(null);
+  const handleSendPhoneOtp = useCallback(async () => {
+    if (isLoading || codeSent) return;
+    setError(null);
 
-      if (!formData.name.trim()) {
-        setError('Please enter your name.');
-        return;
-      }
-      if (!agreeTerms) {
-        setError('Please agree to the terms and conditions');
-        toast.error('Please agree to the terms and conditions');
-        return;
-      }
-
-      const normalized = normalizePhoneE164(formData.phone);
-      if (normalized.length < 8) {
-        setError('Enter a valid phone number with country code (e.g. +91…).');
-        return;
-      }
-      if (normalized.startsWith('+91') && !isLikelyIndianMobileE164(normalized)) {
-        setError('Enter a valid 10-digit Indian mobile (digits only, or with +91).');
-        return;
-      }
-      if (!recaptchaVerifier) {
-        setError('Verification is still loading. Try again in a moment.');
-        return;
-      }
-      if (!opts?.fromCaptcha && !recaptchaSolved) {
-        setError('Complete the reCAPTCHA above, then tap Send OTP.');
-        return;
-      }
-
-      setIsLoading(true);
-      try {
-        const result = await sendPhoneSignInOTP(normalized, recaptchaVerifier);
-        setConfirmation(result);
-        setCodeSent(true);
-        toast.success('OTP sent', {
-          description: 'Enter the 6-digit code from your SMS.',
-        });
-      } catch (err: unknown) {
-        const code = (err as { code?: string })?.code;
-        if (code === 'auth/captcha-check-failed') {
-          setRecaptchaSolved(false);
-        }
-        const msg = getFirebasePhoneAuthErrorMessage(err);
-        setError(msg);
-        toast.error('Could not send OTP', { description: msg });
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [
-      isLoading,
-      codeSent,
-      formData.name,
-      formData.phone,
-      agreeTerms,
-      recaptchaVerifier,
-      recaptchaSolved,
-    ]
-  );
-
-  sendPhoneOtpRef.current = handleSendPhoneOtp;
-
-  useEffect(() => {
-    if (signupMode !== 'phone') {
-      setRecaptchaSolved(false);
-      try {
-        recaptchaInstanceRef.current?.clear();
-      } catch {
-        /* noop */
-      }
-      recaptchaInstanceRef.current = null;
-      setRecaptchaVerifier(null);
+    if (!formData.name.trim()) {
+      setError('Please enter your name.');
+      return;
+    }
+    if (!agreeTerms) {
+      setError('Please agree to the terms and conditions');
+      toast.error('Please agree to the terms and conditions');
+      return;
+    }
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      toast.error('Passwords do not match');
       return;
     }
 
-    let cancelled = false;
+    const normalized = normalizePhoneE164(formData.phone);
+    if (normalized.length < 8) {
+      setError('Enter a valid phone number with country code (e.g. +91…).');
+      return;
+    }
+    if (normalized.startsWith('+91') && !isLikelyIndianMobileE164(normalized)) {
+      setError('Enter a valid 10-digit Indian mobile (digits only, or with +91).');
+      return;
+    }
 
-    (async () => {
-      try {
-        setRecaptchaSolved(false);
-        try {
-          recaptchaInstanceRef.current?.clear();
-        } catch {
-          /* noop */
-        }
-        recaptchaInstanceRef.current = null;
-        setRecaptchaVerifier(null);
-        setError(null);
-
-        const v = await initPhoneRecaptchaVerifier('recaptcha-container-signup', {
-          onSolved: () => {
-            if (cancelled) return;
-            setRecaptchaSolved(true);
-            requestAnimationFrame(() => {
-              void sendPhoneOtpRef.current?.({ fromCaptcha: true });
-            });
-          },
-          onExpired: () => {
-            if (!cancelled) setRecaptchaSolved(false);
-          },
-        });
-        recaptchaInstanceRef.current = v;
-        if (cancelled) {
-          try {
-            v.clear();
-          } catch {
-            /* noop */
-          }
-          recaptchaInstanceRef.current = null;
-          return;
-        }
-        setRecaptchaVerifier(v);
-      } catch (e) {
-        console.error(e);
-        if (!cancelled) {
-          setError('Could not load reCAPTCHA. Please refresh and try again.');
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      try {
-        recaptchaInstanceRef.current?.clear();
-      } catch {
-        /* noop */
-      }
-      recaptchaInstanceRef.current = null;
-    };
-  }, [signupMode]);
+    setIsLoading(true);
+    try {
+      const result = await sendPhoneSignInOTPWithInvisibleRecaptcha(normalized);
+      setConfirmation(result);
+      setCodeSent(true);
+      toast.success('OTP sent', {
+        description: 'Enter the 6-digit code from your SMS.',
+      });
+    } catch (err: unknown) {
+      const msg = getFirebasePhoneAuthErrorMessage(err);
+      setError(msg);
+      toast.error('Could not send OTP', { description: msg });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [
+    isLoading,
+    codeSent,
+    formData.name,
+    formData.phone,
+    formData.password,
+    formData.confirmPassword,
+    agreeTerms,
+  ]);
 
   useEffect(() => {
     setCodeSent(false);
@@ -257,14 +172,25 @@ const Signup = () => {
     setIsLoading(true);
     try {
       const credential = await confirmPhoneSignInOTP(confirmation, otp.replace(/\D/g, ''));
-      await finalizePhoneSignup(credential, formData.name.trim());
+      const normalized = normalizePhoneE164(formData.phone);
+      await finalizePhoneSignupHybrid(
+        credential,
+        formData.name.trim(),
+        formData.password,
+        normalized
+      );
       triggerSuccessConfetti();
       toast.success('Account ready!', {
         description: 'Welcome to TightHug.',
       });
       navigate('/');
     } catch (err: unknown) {
-      const msg = getFirebasePhoneAuthErrorMessage(err);
+      const code = (err as { code?: string })?.code;
+      const msg = code
+        ? getFirebasePhoneAuthErrorMessage(err)
+        : err instanceof Error
+          ? err.message
+          : getFirebasePhoneAuthErrorMessage(err);
       setError(msg);
       toast.error('Signup failed', { description: msg });
     } finally {
@@ -311,8 +237,6 @@ const Signup = () => {
                     setFormData((prev) => ({
                       ...prev,
                       email: '',
-                      password: '',
-                      confirmPassword: '',
                     }));
                   }}
                   className="flex-1"
@@ -323,7 +247,7 @@ const Signup = () => {
               <p className="text-center text-xs text-muted-foreground leading-relaxed px-1">
                 {signupMode === 'email'
                   ? 'Use your email and a password. Phone is optional (for order SMS).'
-                  : 'No email needed. We will send a 6-digit code to your mobile number.'}
+                  : 'We send a one-time code to your phone, then link a password so you can sign in with phone + password next time (no SMS each login).'}
               </p>
             </div>
 
@@ -364,6 +288,78 @@ const Signup = () => {
                     </p>
                   </div>
 
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-phone-password">Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="signup-phone-password"
+                        name="password"
+                        type={showPassword ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        placeholder="••••••••"
+                        value={formData.password}
+                        onChange={handleChange}
+                        disabled={codeSent}
+                        required
+                        minLength={6}
+                        className={error ? 'border-red-500' : ''}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    {formData.password && (
+                      <div className="space-y-1">
+                        <div className="flex gap-1">
+                          {[1, 2, 3].map((level) => (
+                            <div
+                              key={level}
+                              className={`h-1 flex-1 rounded ${
+                                level <= passwordStrength.score
+                                  ? passwordStrength.strength === 'weak'
+                                    ? 'bg-red-500'
+                                    : passwordStrength.strength === 'medium'
+                                      ? 'bg-yellow-500'
+                                      : 'bg-green-500'
+                                  : 'bg-gray-200'
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground">Strength: {passwordStrength.strength}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-phone-confirm">Confirm password</Label>
+                    <div className="relative">
+                      <Input
+                        id="signup-phone-confirm"
+                        name="confirmPassword"
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        placeholder="••••••••"
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                        disabled={codeSent}
+                        required
+                        className={error ? 'border-red-500' : ''}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      >
+                        {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="flex items-start gap-2">
                     <Checkbox
                       id="terms-phone"
@@ -384,20 +380,16 @@ const Signup = () => {
                     </Label>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label className="text-muted-foreground">Verify you are human</Label>
-                    <RecaptchaPhoneBox containerId="recaptcha-container-signup" />
-                    <p className="text-xs text-muted-foreground">
-                      Tick “I’m not a robot”. We send the OTP right after it succeeds — or tap Send OTP.
-                    </p>
-                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Sending an OTP uses Google invisible reCAPTCHA in the background (no checkbox on this screen).
+                  </p>
 
                   {!codeSent ? (
                     <Button
                       type="button"
                       size="lg"
                       className="w-full"
-                      disabled={isLoading || !recaptchaVerifier || !recaptchaSolved}
+                      disabled={isLoading}
                       onClick={() => void handleSendPhoneOtp()}
                     >
                       {isLoading ? 'Sending…' : 'Send OTP'}
