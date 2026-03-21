@@ -23,7 +23,7 @@ This project is built with:
 - **TypeScript** - Type-safe JavaScript
 - **React** - UI library
 - **React Router** - Client-side routing
-- **Firebase** - Backend services (Auth, Firestore, Storage)
+- **Firebase** - Backend services (Auth, Firestore, Storage) 
 - **shadcn-ui** - UI component library
 - **Tailwind CSS** - Utility-first CSS framework
 - **Zustand** - State management
