@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import type { ConfirmationResult, RecaptchaVerifier } from 'firebase/auth';
 import Navbar from '@/components/layout/Navbar';
@@ -12,7 +12,8 @@ import {
   login,
   loginWithGoogle,
   normalizePhoneE164,
-  createPhoneRecaptchaVerifier,
+  isLikelyIndianMobileE164,
+  initPhoneRecaptchaVerifier,
   sendPhoneSignInOTP,
   confirmPhoneSignInOTP,
   finalizePhoneLogin,
@@ -35,41 +36,79 @@ const Login = () => {
   const [codeSent, setCodeSent] = useState(false);
   const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
   const [recaptchaVerifier, setRecaptchaVerifier] = useState<RecaptchaVerifier | null>(null);
+  /** Visible compact reCAPTCHA solved (green tick). */
+  const [recaptchaSolved, setRecaptchaSolved] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/';
+  const recaptchaInstanceRef = useRef<RecaptchaVerifier | null>(null);
 
   useEffect(() => {
     if (!usePhone || phoneMode !== 'otp') {
-      setRecaptchaVerifier((prev) => {
-        try {
-          prev?.clear();
-        } catch {
-          /* noop */
-        }
-        return null;
-      });
+      setRecaptchaSolved(false);
+      try {
+        recaptchaInstanceRef.current?.clear();
+      } catch {
+        /* noop */
+      }
+      recaptchaInstanceRef.current = null;
+      setRecaptchaVerifier(null);
       return;
     }
 
-    try {
-      const verifier = createPhoneRecaptchaVerifier('recaptcha-container-login');
-      setRecaptchaVerifier(verifier);
-      return () => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setRecaptchaSolved(false);
         try {
-          verifier.clear();
+          recaptchaInstanceRef.current?.clear();
         } catch {
           /* noop */
         }
-      };
-    } catch (e: unknown) {
-      console.error(e);
-      setError('Could not load verification. Please refresh and try again.');
-      return undefined;
-    }
+        recaptchaInstanceRef.current = null;
+        setRecaptchaVerifier(null);
+        setError(null);
+
+        const v = await initPhoneRecaptchaVerifier('recaptcha-container-login', {
+          onSolved: () => {
+            if (!cancelled) setRecaptchaSolved(true);
+          },
+          onExpired: () => {
+            if (!cancelled) setRecaptchaSolved(false);
+          },
+        });
+        recaptchaInstanceRef.current = v;
+        if (cancelled) {
+          try {
+            v.clear();
+          } catch {
+            /* noop */
+          }
+          recaptchaInstanceRef.current = null;
+          return;
+        }
+        setRecaptchaVerifier(v);
+      } catch (e: unknown) {
+        console.error(e);
+        if (!cancelled) {
+          setError('Could not load reCAPTCHA. Please refresh and try again.');
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      try {
+        recaptchaInstanceRef.current?.clear();
+      } catch {
+        /* noop */
+      }
+      recaptchaInstanceRef.current = null;
+    };
   }, [usePhone, phoneMode]);
 
   useEffect(() => {
@@ -114,8 +153,16 @@ const Login = () => {
       setError('Enter a valid phone number with country code (e.g. +91…).');
       return;
     }
+    if (normalized.startsWith('+91') && !isLikelyIndianMobileE164(normalized)) {
+      setError('Enter a valid 10-digit Indian mobile (digits only, or with +91).');
+      return;
+    }
     if (!recaptchaVerifier) {
       setError('Verification is still loading. Try again in a moment.');
+      return;
+    }
+    if (!recaptchaSolved) {
+      setError('Complete the reCAPTCHA checkbox above, then tap Send OTP.');
       return;
     }
 
@@ -235,19 +282,27 @@ const Login = () => {
                       className={error ? 'border-red-500' : ''}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Include country code (e.g. +91). Numbers without + use your default region from env.
+                      India: enter 10 digits (we add +91 if you skip the country code). Others: include full country code.
                     </p>
                   </div>
 
-                  {/* Firebase injects invisible reCAPTCHA here — avoid sr-only/aria-hidden (breaks iframe). */}
-                  <div id="recaptcha-container-login" className="w-full min-h-px" aria-label="reCAPTCHA verification" />
+                  <div className="space-y-2">
+                    <Label className="text-muted-foreground">Verify you are human</Label>
+                    <div
+                      id="recaptcha-container-login"
+                      className="flex min-h-[130px] w-full justify-center overflow-x-auto rounded-md border border-border bg-muted/30 py-3"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Tick the box and wait for the green checkmark, then tap Send OTP.
+                    </p>
+                  </div>
 
                   {!codeSent ? (
                     <Button
                       type="button"
                       size="lg"
                       className="w-full"
-                      disabled={isLoading || !recaptchaVerifier}
+                      disabled={isLoading || !recaptchaVerifier || !recaptchaSolved}
                       onClick={handleSendOtp}
                     >
                       {isLoading ? 'Sending…' : 'Send OTP'}

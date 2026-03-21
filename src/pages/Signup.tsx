@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { ConfirmationResult, RecaptchaVerifier } from 'firebase/auth';
 import Navbar from '@/components/layout/Navbar';
@@ -13,7 +13,8 @@ import {
   signup,
   loginWithGoogle,
   normalizePhoneE164,
-  createPhoneRecaptchaVerifier,
+  isLikelyIndianMobileE164,
+  initPhoneRecaptchaVerifier,
   sendPhoneSignInOTP,
   confirmPhoneSignInOTP,
   finalizePhoneSignup,
@@ -37,6 +38,8 @@ const Signup = () => {
   const [codeSent, setCodeSent] = useState(false);
   const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
   const [recaptchaVerifier, setRecaptchaVerifier] = useState<RecaptchaVerifier | null>(null);
+  const [recaptchaSolved, setRecaptchaSolved] = useState(false);
+  const recaptchaInstanceRef = useRef<RecaptchaVerifier | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
@@ -47,32 +50,67 @@ const Signup = () => {
 
   useEffect(() => {
     if (signupMode !== 'phone') {
-      setRecaptchaVerifier((prev) => {
-        try {
-          prev?.clear();
-        } catch {
-          /* noop */
-        }
-        return null;
-      });
+      setRecaptchaSolved(false);
+      try {
+        recaptchaInstanceRef.current?.clear();
+      } catch {
+        /* noop */
+      }
+      recaptchaInstanceRef.current = null;
+      setRecaptchaVerifier(null);
       return;
     }
 
-    try {
-      const verifier = createPhoneRecaptchaVerifier('recaptcha-container-signup');
-      setRecaptchaVerifier(verifier);
-      return () => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setRecaptchaSolved(false);
         try {
-          verifier.clear();
+          recaptchaInstanceRef.current?.clear();
         } catch {
           /* noop */
         }
-      };
-    } catch (e) {
-      console.error(e);
-      setError('Could not load verification. Please refresh and try again.');
-      return undefined;
-    }
+        recaptchaInstanceRef.current = null;
+        setRecaptchaVerifier(null);
+        setError(null);
+
+        const v = await initPhoneRecaptchaVerifier('recaptcha-container-signup', {
+          onSolved: () => {
+            if (!cancelled) setRecaptchaSolved(true);
+          },
+          onExpired: () => {
+            if (!cancelled) setRecaptchaSolved(false);
+          },
+        });
+        recaptchaInstanceRef.current = v;
+        if (cancelled) {
+          try {
+            v.clear();
+          } catch {
+            /* noop */
+          }
+          recaptchaInstanceRef.current = null;
+          return;
+        }
+        setRecaptchaVerifier(v);
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) {
+          setError('Could not load reCAPTCHA. Please refresh and try again.');
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      try {
+        recaptchaInstanceRef.current?.clear();
+      } catch {
+        /* noop */
+      }
+      recaptchaInstanceRef.current = null;
+    };
   }, [signupMode]);
 
   useEffect(() => {
@@ -150,8 +188,16 @@ const Signup = () => {
       setError('Enter a valid phone number with country code (e.g. +91…).');
       return;
     }
+    if (normalized.startsWith('+91') && !isLikelyIndianMobileE164(normalized)) {
+      setError('Enter a valid 10-digit Indian mobile (digits only, or with +91).');
+      return;
+    }
     if (!recaptchaVerifier) {
       setError('Verification is still loading. Try again in a moment.');
+      return;
+    }
+    if (!recaptchaSolved) {
+      setError('Complete the reCAPTCHA checkbox above, then tap Send OTP.');
       return;
     }
 
@@ -289,12 +335,9 @@ const Signup = () => {
                       required
                     />
                     <p className="text-xs text-muted-foreground">
-                      Include country code. SMS rates may apply per your carrier.
+                      India: 10 digits (we add +91 if omitted). Others: include full country code.
                     </p>
                   </div>
-
-                  {/* Firebase injects invisible reCAPTCHA here — avoid sr-only/aria-hidden (breaks iframe). */}
-                  <div id="recaptcha-container-signup" className="w-full min-h-px" aria-label="reCAPTCHA verification" />
 
                   <div className="flex items-start gap-2">
                     <Checkbox
@@ -316,12 +359,23 @@ const Signup = () => {
                     </Label>
                   </div>
 
+                  <div className="space-y-2">
+                    <Label className="text-muted-foreground">Verify you are human</Label>
+                    <div
+                      id="recaptcha-container-signup"
+                      className="flex min-h-[130px] w-full justify-center overflow-x-auto rounded-md border border-border bg-muted/30 py-3"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Tick the box and wait for the green checkmark, then tap Send OTP.
+                    </p>
+                  </div>
+
                   {!codeSent ? (
                     <Button
                       type="button"
                       size="lg"
                       className="w-full"
-                      disabled={isLoading || !recaptchaVerifier}
+                      disabled={isLoading || !recaptchaVerifier || !recaptchaSolved}
                       onClick={handleSendPhoneOtp}
                     >
                       {isLoading ? 'Sending…' : 'Send OTP'}

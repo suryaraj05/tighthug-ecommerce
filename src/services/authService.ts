@@ -41,16 +41,47 @@ export const normalizePhoneE164 = (raw: string): string => {
   return `${code}${digits}`;
 };
 
-export const createPhoneRecaptchaVerifier = (containerId: string): RecaptchaVerifier => {
-  return new RecaptchaVerifier(auth, containerId, {
-    size: 'invisible',
+/** When using default `+91` prefix, require a plausible Indian mobile (10 digits, starts with 6–9). */
+export const isLikelyIndianMobileE164 = (e164: string): boolean => {
+  const n = e164.replace(/\s/g, '');
+  return /^\+91[6-9]\d{9}$/.test(n);
+};
+
+export type PhoneRecaptchaCallbacks = {
+  /** User completed the visible reCAPTCHA challenge (compact/normal). */
+  onSolved?: () => void;
+  /** reCAPTCHA expired — user must verify again before Send OTP. */
+  onExpired?: () => void;
+};
+
+/**
+ * Visible **compact** reCAPTCHA (more reliable than invisible on mobile / Safari / emulators).
+ * Call after the container element exists in the DOM. Resolves after `render()`.
+ */
+export const initPhoneRecaptchaVerifier = async (
+  containerId: string,
+  callbacks?: PhoneRecaptchaCallbacks
+): Promise<RecaptchaVerifier> => {
+  const verifier = new RecaptchaVerifier(auth, containerId, {
+    size: 'compact',
     callback: () => {
-      /* reCAPTCHA solved; signInWithPhoneNumber can proceed */
+      callbacks?.onSolved?.();
     },
     'expired-callback': () => {
-      /* User may need to retry send OTP */
+      callbacks?.onExpired?.();
     },
   });
+
+  const withRender = verifier as RecaptchaVerifier & { render?: () => Promise<number> };
+  if (typeof withRender.render === 'function') {
+    try {
+      await withRender.render();
+    } catch {
+      /* Some SDK builds render on construction; ignore duplicate render */
+    }
+  }
+
+  return verifier;
 };
 
 /** User-facing message for Firebase phone / SMS errors (console codes). */
@@ -67,7 +98,7 @@ export const getFirebasePhoneAuthErrorMessage = (error: unknown): string => {
     case 'auth/too-many-requests':
       return 'Too many attempts. Wait a few minutes and try again.';
     case 'auth/captcha-check-failed':
-      return 'Verification check failed. Refresh the page and tap Send OTP again.';
+      return 'reCAPTCHA could not verify this device. Complete the checkbox above, wait for the green tick, then tap Send OTP again.';
     case 'auth/quota-exceeded':
       return 'SMS limit reached for this project. Check Firebase billing (Blaze) and SMS quotas.';
     case 'auth/invalid-verification-code':
