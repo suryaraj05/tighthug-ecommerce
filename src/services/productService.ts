@@ -42,6 +42,10 @@ export interface Product {
   images: string[];
   variants?: ProductVariant[]; // Color variants
   fabric?: string; // Fabric variant (e.g., "Cotton", "Polyester", "Blend")
+  /** Optional overrides for search snippets (otherwise auto-generated from name/description). */
+  seoTitle?: string;
+  seoDescription?: string;
+  seoKeywords?: string;
   createdAt?: any;
   updatedAt?: any;
 }

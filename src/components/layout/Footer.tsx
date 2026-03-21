@@ -140,7 +140,7 @@ const Footer = () => {
               </a>
             </div>
             <p className="text-sm text-primary-foreground/70">
-              support@tighthug.com
+              support@tighthug.in
             </p>
           </div>
         </div>

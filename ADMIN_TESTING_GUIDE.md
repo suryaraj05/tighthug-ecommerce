@@ -7,7 +7,7 @@ This guide will help you test the admin panel functionality of TightHug Store.
 ### Method 1: Using Firebase Console (Recommended)
 
 1. **Create a regular user account:**
-   - Go to your app and sign up with an email (e.g., `admin@tighthug.com`)
+   - Go to your app and sign up with an email (e.g., `admin@tighthug.in`)
    - Complete the signup process
 
 2. **Make the user an admin in Firebase:**

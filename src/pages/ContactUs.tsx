@@ -56,8 +56,8 @@ const ContactUs = () => {
                   <Mail className="h-5 w-5 text-muted-foreground mt-1" />
                   <div>
                     <h3 className="font-semibold mb-1">Email</h3>
-                    <a href="mailto:support@tighthug.com" className="text-muted-foreground hover:text-primary">
-                      support@tighthug.com
+                    <a href="mailto:support@tighthug.in" className="text-muted-foreground hover:text-primary">
+                      support@tighthug.in
                     </a>
                   </div>
                 </div>

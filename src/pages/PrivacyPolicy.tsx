@@ -84,8 +84,8 @@ const PrivacyPolicy = () => {
                 <h2 className="text-2xl font-semibold mb-4">7. Contact Us</h2>
                 <p className="text-muted-foreground">
                   If you have questions about this Privacy Policy, please contact us at{' '}
-                  <a href="mailto:support@tighthug.com" className="text-primary hover:underline">
-                    support@tighthug.com
+                  <a href="mailto:support@tighthug.in" className="text-primary hover:underline">
+                    support@tighthug.in
                   </a>
                   .
                 </p>

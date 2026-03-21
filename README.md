@@ -140,4 +140,4 @@ Proprietary - TightHug
 
 ## Support
 
-For support, contact: support@tighthug.com
+For support, contact: support@tighthug.in

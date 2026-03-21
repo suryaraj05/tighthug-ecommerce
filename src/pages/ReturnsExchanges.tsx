@@ -68,7 +68,7 @@ const ReturnsExchanges = () => {
                     <div>
                       <h4 className="font-semibold">Contact Us</h4>
                       <p className="text-muted-foreground">
-                        Email us at support@tighthug.com with your order ID and reason for return.
+                        Email us at support@tighthug.in with your order ID and reason for return.
                       </p>
                     </div>
                   </div>

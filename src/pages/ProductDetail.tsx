@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import SizeSelector from '@/components/products/SizeSelector';
@@ -25,10 +25,12 @@ import ReviewForm from '@/components/reviews/ReviewForm';
 import StarRating from '@/components/reviews/StarRating';
 import ProductDetailSkeleton from '@/components/products/ProductDetailSkeleton';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ProductSeoHead } from '@/components/seo/SeoHead';
 
 const ProductDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const addItem = useCartStore((state) => state.addItem);
   const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlistStore();
 
@@ -256,6 +258,7 @@ const ProductDetail = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <ProductSeoHead product={product} pathname={location.pathname} />
       <Navbar />
 
       <main className="flex-1">

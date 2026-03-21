@@ -208,7 +208,7 @@ const OrderConfirmation = () => {
           {/* Help */}
           <p className="text-sm text-muted-foreground pt-8">
             Need help?{' '}
-            <a href="mailto:support@tighthug.com" className="underline hover:text-foreground transition-colors">
+            <a href="mailto:support@tighthug.in" className="underline hover:text-foreground transition-colors">
               Contact Support
             </a>
           </p>

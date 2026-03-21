@@ -46,8 +46,8 @@ During installation, configure the following:
 
 #### Email Templates:
 - **Default sender name**: `TightHug Store`
-- **Default sender email**: `noreply@tighthug.com` (or your email)
-- **Reply-to email**: `support@tighthug.com` (optional)
+- **Default sender email**: `noreply@tighthug.in` (or your email)
+- **Reply-to email**: `support@tighthug.in` (optional)
 
 #### Firestore Collection:
 - **Collection path**: `mail` (default)

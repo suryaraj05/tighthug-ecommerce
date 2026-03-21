@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
+import { SeoHead } from '@/components/seo/SeoHead';
 import { Link, useSearchParams } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
@@ -94,6 +95,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <SeoHead canonicalPath="/" />
       <Navbar />
 
       <main className="flex-1">

@@ -1,12 +1,22 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import type { ConfirmationResult, RecaptchaVerifier } from 'firebase/auth';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
 import { toast } from 'sonner';
-import { login, loginWithGoogle } from '@/services/authService';
+import {
+  login,
+  loginWithGoogle,
+  normalizePhoneE164,
+  createPhoneRecaptchaVerifier,
+  sendPhoneSignInOTP,
+  confirmPhoneSignInOTP,
+  finalizePhoneLogin,
+} from '@/services/authService';
 import { useAuthStore } from '@/stores/authStore';
 import { Eye, EyeOff } from 'lucide-react';
 import { triggerSuccessConfetti } from '@/utils/confetti';
@@ -19,36 +29,133 @@ const Login = () => {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [usePhone, setUsePhone] = useState(false);
+  const [phoneMode, setPhoneMode] = useState<'password' | 'otp'>('password');
+  const [otp, setOtp] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
+  const [confirmation, setConfirmation] = useState<ConfirmationResult | null>(null);
+  const [recaptchaVerifier, setRecaptchaVerifier] = useState<RecaptchaVerifier | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const from = (location.state as any)?.from?.pathname || '/';
+  const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/';
+
+  useEffect(() => {
+    if (!usePhone || phoneMode !== 'otp') {
+      setRecaptchaVerifier((prev) => {
+        try {
+          prev?.clear();
+        } catch {
+          /* noop */
+        }
+        return null;
+      });
+      return;
+    }
+
+    try {
+      const verifier = createPhoneRecaptchaVerifier('recaptcha-container-login');
+      setRecaptchaVerifier(verifier);
+      return () => {
+        try {
+          verifier.clear();
+        } catch {
+          /* noop */
+        }
+      };
+    } catch (e: unknown) {
+      console.error(e);
+      setError('Could not load verification. Please refresh and try again.');
+      return undefined;
+    }
+  }, [usePhone, phoneMode]);
+
+  useEffect(() => {
+    setCodeSent(false);
+    setConfirmation(null);
+    setOtp('');
+  }, [usePhone, phoneMode, phone]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (usePhone && phoneMode === 'otp') return;
+
     setError(null);
     setIsLoading(true);
 
     try {
-      await login({ 
-        ...(usePhone ? { phone } : { email }), 
-        password 
+      await login({
+        ...(usePhone ? { phone } : { email }),
+        password,
       });
       toast.success('Welcome back!', {
         description: 'You have been logged in successfully.',
       });
-      
-      // Redirect based on user role
+
       const redirectTo = isAdmin ? '/admin' : from;
       navigate(redirectTo, { replace: true });
-    } catch (err: any) {
-      const errorMessage = err.message || 'Failed to login. Please try again.';
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to login. Please try again.';
       setError(errorMessage);
       toast.error('Login failed', {
         description: errorMessage,
       });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSendOtp = async () => {
+    setError(null);
+    const normalized = normalizePhoneE164(phone);
+    if (normalized.length < 8) {
+      setError('Enter a valid phone number with country code (e.g. +91…).');
+      return;
+    }
+    if (!recaptchaVerifier) {
+      setError('Verification is still loading. Try again in a moment.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const result = await sendPhoneSignInOTP(normalized, recaptchaVerifier);
+      setConfirmation(result);
+      setCodeSent(true);
+      toast.success('Code sent', {
+        description: 'Check your phone for the SMS code.',
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to send code.';
+      setError(msg);
+      toast.error('Could not send code', { description: msg });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!confirmation || otp.replace(/\D/g, '').length < 6) {
+      setError('Enter the 6-digit code from SMS.');
+      return;
+    }
+
+    setError(null);
+    setIsLoading(true);
+    try {
+      const credential = await confirmPhoneSignInOTP(confirmation, otp.replace(/\D/g, ''));
+      await finalizePhoneLogin(credential);
+      triggerSuccessConfetti();
+      toast.success('Welcome back!', {
+        description: 'You have been logged in successfully.',
+      });
+      const redirectTo = useAuthStore.getState().isAdmin ? '/admin' : from;
+      navigate(redirectTo, { replace: true });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Invalid code. Please try again.';
+      setError(msg);
+      toast.error('Sign-in failed', { description: msg });
     } finally {
       setIsLoading(false);
     }
@@ -61,20 +168,19 @@ const Login = () => {
       <main className="flex-1 flex items-center justify-center py-16">
         <div className="w-full max-w-md px-4">
           <div className="space-y-8">
-            {/* Header */}
             <div className="text-center space-y-2">
               <h1 className="text-3xl font-display font-bold">Welcome Back</h1>
-              <p className="text-muted-foreground">
-                Sign in to your account to continue
-              </p>
+              <p className="text-muted-foreground">Sign in to your account to continue</p>
             </div>
 
-            {/* Toggle */}
             <div className="flex gap-2">
               <Button
                 type="button"
                 variant={!usePhone ? 'default' : 'outline'}
-                onClick={() => setUsePhone(false)}
+                onClick={() => {
+                  setUsePhone(false);
+                  setError(null);
+                }}
                 className="flex-1"
               >
                 Use Email
@@ -82,17 +188,42 @@ const Login = () => {
               <Button
                 type="button"
                 variant={usePhone ? 'default' : 'outline'}
-                onClick={() => setUsePhone(true)}
+                onClick={() => {
+                  setUsePhone(true);
+                  setError(null);
+                }}
                 className="flex-1"
               >
                 Use Phone
               </Button>
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-4">
-                {usePhone ? (
+            {usePhone && (
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={phoneMode === 'password' ? 'secondary' : 'outline'}
+                  onClick={() => setPhoneMode('password')}
+                  className="flex-1 text-sm"
+                >
+                  Password
+                </Button>
+                <Button
+                  type="button"
+                  variant={phoneMode === 'otp' ? 'secondary' : 'outline'}
+                  onClick={() => setPhoneMode('otp')}
+                  className="flex-1 text-sm"
+                >
+                  SMS code
+                </Button>
+              </div>
+            )}
+
+            <div id="recaptcha-container-login" className="sr-only" aria-hidden />
+
+            {usePhone && phoneMode === 'otp' ? (
+              <div className="space-y-6">
+                <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone Number</Label>
                     <Input
@@ -101,93 +232,159 @@ const Login = () => {
                       placeholder="+91 9876543210"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      required
-                    />
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="you@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="password">Password</Label>
-                    <Link
-                      to="/forgot-password"
-                      className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      Forgot password?
-                    </Link>
-                  </div>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
+                      disabled={codeSent}
                       className={error ? 'border-red-500' : ''}
                     />
-                    <button
+                    <p className="text-xs text-muted-foreground">
+                      Include country code (e.g. +91). Numbers without + use your default region from env.
+                    </p>
+                  </div>
+
+                  {!codeSent ? (
+                    <Button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      size="lg"
+                      className="w-full"
+                      disabled={isLoading || !recaptchaVerifier}
+                      onClick={handleSendOtp}
                     >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </button>
+                      {isLoading ? 'Sending…' : 'Send SMS code'}
+                    </Button>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        <Label>6-digit code</Label>
+                        <InputOTP maxLength={6} value={otp} onChange={setOtp}>
+                          <InputOTPGroup className="gap-2 justify-center">
+                            <InputOTPSlot index={0} />
+                            <InputOTPSlot index={1} />
+                            <InputOTPSlot index={2} />
+                            <InputOTPSlot index={3} />
+                            <InputOTPSlot index={4} />
+                            <InputOTPSlot index={5} />
+                          </InputOTPGroup>
+                        </InputOTP>
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="flex-1"
+                          disabled={isLoading}
+                          onClick={() => {
+                            setCodeSent(false);
+                            setConfirmation(null);
+                            setOtp('');
+                          }}
+                        >
+                          Change number
+                        </Button>
+                        <Button
+                          type="button"
+                          className="flex-1"
+                          size="lg"
+                          disabled={isLoading}
+                          onClick={handleVerifyOtp}
+                        >
+                          {isLoading ? 'Verifying…' : 'Verify & sign in'}
+                        </Button>
+                      </div>
+                    </>
+                  )}
+
+                  {error && <p className="text-sm text-red-500">{error}</p>}
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="space-y-4">
+                  {usePhone ? (
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Phone Number</Label>
+                      <Input
+                        id="phone"
+                        type="tel"
+                        placeholder="+91 9876543210"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        required
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="you@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password">Password</Label>
+                      <Link
+                        to="/forgot-password"
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Forgot password?
+                      </Link>
+                    </div>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        className={error ? 'border-red-500' : ''}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {error && <p className="text-sm text-red-500">{error}</p>}
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="remember"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="h-4 w-4 border-input"
+                    />
+                    <Label htmlFor="remember" className="text-sm font-normal">
+                      Remember me
+                    </Label>
                   </div>
                 </div>
 
-                {error && (
-                  <p className="text-sm text-red-500">{error}</p>
-                )}
+                <Button type="submit" size="lg" className="w-full" disabled={isLoading}>
+                  {isLoading ? 'Signing in...' : 'Sign In'}
+                </Button>
+              </form>
+            )}
 
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="remember"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="h-4 w-4 border-input"
-                  />
-                  <Label htmlFor="remember" className="text-sm font-normal">
-                    Remember me
-                  </Label>
-                </div>
-              </div>
-
-              <Button type="submit" size="lg" className="w-full" disabled={isLoading}>
-                {isLoading ? 'Signing in...' : 'Sign In'}
-              </Button>
-            </form>
-
-            {/* Divider */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-border" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  Or continue with
-                </span>
+                <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
               </div>
             </div>
 
-            {/* Google Sign In */}
             <Button
               type="button"
               variant="outline"
@@ -201,11 +398,11 @@ const Login = () => {
                   toast.success('Welcome!', {
                     description: 'You have been logged in successfully.',
                   });
-                  const redirectTo = isAdmin ? '/admin' : from;
+                  const redirectTo = useAuthStore.getState().isAdmin ? '/admin' : from;
                   navigate(redirectTo, { replace: true });
-                } catch (err: any) {
+                } catch (err: unknown) {
                   toast.error('Google sign-in failed', {
-                    description: err.message || 'Please try again.',
+                    description: err instanceof Error ? err.message : 'Please try again.',
                   });
                 } finally {
                   setIsLoading(false);
@@ -234,19 +431,15 @@ const Login = () => {
               Continue with Google
             </Button>
 
-            {/* Divider */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-border" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  New to TightHug?
-                </span>
+                <span className="bg-background px-2 text-muted-foreground">New to TightHug?</span>
               </div>
             </div>
 
-            {/* Sign Up Link */}
             <Link to="/signup">
               <Button variant="outline" size="lg" className="w-full">
                 Create Account

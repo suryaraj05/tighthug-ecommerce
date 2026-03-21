@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // Helper function to check if user owns the document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Products Collection
+    // - Anyone can read products (public catalog)
+    // - Only admins can create, update, or delete products
+    match /products/{productId} {
+      allow read: if true; // Public read access
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // Users Collection
+    // - Users can read their own data
+    // - Users can update their own data (except role)
+    // - Anyone can create their own user document on signup
+    // - Admins can read all users
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && request.resource.data.role == 'customer';
+      allow update: if isOwner(userId) && 
+                       (!('role' in request.resource.data.diff(resource.data).affectedKeys()) || 
+                        resource.data.role == request.resource.data.role) ||
+                    isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // Orders Collection
+    // - Users can read and create their own orders
+    // - Users can update their own orders (limited fields)
+    // - Admins can read and update all orders
+    match /orders/{orderId} {
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid;
+      allow update: if isOwner(resource.data.userId) && 
+                       // Users can only update limited fields (e.g., shipping address before shipping)
+                       (!('status' in request.resource.data.diff(resource.data).affectedKeys()) ||
+                        resource.data.status == request.resource.data.status) ||
+                    isAdmin(); // Admins can update anything
+      allow delete: if isAdmin();
+    }
+    
+    // Coupons Collection
+    // - Anyone can read coupons (to validate codes)
+    // - Only admins can create, update, or delete coupons
+    match /coupons/{couponId} {
+      allow read: if true; // Public read access
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // Reviews Collection
+    // - Anyone can read reviews
+    // - Authenticated users can create reviews
+    // - Users can update/delete their own reviews
+    // - Admins can delete any review
+    match /reviews/{reviewId} {
+      allow read: if true; // Public read access
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+    
+    // Mail Collection (for email extension)
+    // - Only extension can read
+    // - Server/admin can write
+    match /mail/{document=**} {
+      allow write: if isAuthenticated() && 
+                      (isAdmin() || 
+                       request.resource.data.to == request.auth.token.email);
+      allow read: if false; // Only extension reads this
+    }
+  }
+}
+

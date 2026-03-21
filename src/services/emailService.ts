@@ -78,7 +78,7 @@ export const sendWelcomeEmail = async (email: string, name: string): Promise<voi
               </div>
               <div style="text-align: center; padding: 20px; color: #666; font-size: 12px;">
                 <p>© ${new Date().getFullYear()} TightHug. All rights reserved.</p>
-                <p>If you have any questions, contact us at support@tighthug.com</p>
+                <p>If you have any questions, contact us at support@tighthug.in</p>
               </div>
             </body>
           </html>
@@ -186,7 +186,7 @@ export const sendOrderConfirmationEmail = async (
               </div>
               <div style="text-align: center; padding: 20px; color: #666; font-size: 12px;">
                 <p>© ${new Date().getFullYear()} TightHug. All rights reserved.</p>
-                <p>Questions? Contact us at support@tighthug.com</p>
+                <p>Questions? Contact us at support@tighthug.in</p>
               </div>
             </body>
           </html>
@@ -273,7 +273,7 @@ export const sendOrderStatusEmail = async (
               </div>
               <div style="text-align: center; padding: 20px; color: #666; font-size: 12px;">
                 <p>© ${new Date().getFullYear()} TightHug. All rights reserved.</p>
-                <p>Questions? Contact us at support@tighthug.com</p>
+                <p>Questions? Contact us at support@tighthug.in</p>
               </div>
             </body>
           </html>

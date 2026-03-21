@@ -8,6 +8,10 @@ import {
   User,
   GoogleAuthProvider,
   sendPasswordResetEmail,
+  signInWithPhoneNumber,
+  RecaptchaVerifier,
+  ConfirmationResult,
+  UserCredential,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc, serverTimestamp, query, where, getDocs, collection } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
@@ -27,16 +31,106 @@ export interface LoginData {
   password: string;
 }
 
-export interface SignupWithPhoneData {
-  phone: string;
-  name: string;
-  password: string;
-  otp: string; // OTP verification (placeholder for AWS)
-}
+/** Normalize to E.164: trims spaces; if no leading +, prepends `VITE_DEFAULT_PHONE_COUNTRY_CODE` (default +91). */
+export const normalizePhoneE164 = (raw: string): string => {
+  const trimmed = raw.trim().replace(/\s/g, '');
+  if (!trimmed) return trimmed;
+  if (trimmed.startsWith('+')) return trimmed;
+  const code = import.meta.env.VITE_DEFAULT_PHONE_COUNTRY_CODE || '+91';
+  const digits = trimmed.replace(/^0+/, '');
+  return `${code}${digits}`;
+};
 
-export interface SendOTPData {
-  phone: string;
-}
+export const createPhoneRecaptchaVerifier = (containerId: string): RecaptchaVerifier => {
+  return new RecaptchaVerifier(auth, containerId, {
+    size: 'invisible',
+  });
+};
+
+export const sendPhoneSignInOTP = async (
+  phoneE164: string,
+  appVerifier: RecaptchaVerifier
+): Promise<ConfirmationResult> => {
+  return signInWithPhoneNumber(auth, phoneE164, appVerifier);
+};
+
+export const confirmPhoneSignInOTP = async (
+  confirmationResult: ConfirmationResult,
+  code: string
+): Promise<UserCredential> => {
+  return confirmationResult.confirm(code);
+};
+
+/** After Firebase phone verification on Login: require an existing Firestore profile. */
+export const finalizePhoneLogin = async (credential: UserCredential): Promise<void> => {
+  const { user } = credential;
+  const userDoc = await getDoc(doc(db, 'users', user.uid));
+
+  if (!userDoc.exists()) {
+    await signOut(auth);
+    throw new Error('No account found for this number. Please sign up first.');
+  }
+
+  const userData = userDoc.data();
+  useAuthStore.getState().setUser({
+    uid: user.uid,
+    email: user.email || '',
+    name: userData.name || '',
+    phone: userData.phone || user.phoneNumber || '',
+    role: userData.role || 'customer',
+  });
+  useAuthStore.getState().setIsAdmin(userData.role === 'admin');
+  useAuthStore.getState().setFirebaseUser(user);
+};
+
+/** After Firebase phone verification on Signup: create profile if missing; otherwise treat as returning user. */
+export const finalizePhoneSignup = async (
+  credential: UserCredential,
+  name: string
+): Promise<void> => {
+  const { user } = credential;
+  const userRef = doc(db, 'users', user.uid);
+  const existing = await getDoc(userRef);
+
+  if (existing.exists()) {
+    const userData = existing.data();
+    useAuthStore.getState().setUser({
+      uid: user.uid,
+      email: user.email || '',
+      name: userData.name || '',
+      phone: userData.phone || user.phoneNumber || '',
+      role: userData.role || 'customer',
+    });
+    useAuthStore.getState().setIsAdmin(userData.role === 'admin');
+    useAuthStore.getState().setFirebaseUser(user);
+    return;
+  }
+
+  const phone = user.phoneNumber || '';
+  const userData = {
+    uid: user.uid,
+    email: user.email || '',
+    name,
+    phone,
+    role: 'customer',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+
+  await setDoc(userRef, userData);
+
+  await updateProfile(user, { displayName: name });
+
+  useAuthStore.getState().setUser({
+    uid: user.uid,
+    email: user.email || '',
+    name,
+    phone,
+    role: 'customer',
+  });
+  useAuthStore.getState().setFirebaseUser(user);
+  useAuthStore.getState().setIsAdmin(false);
+};
 
 export const signup = async (data: SignupData): Promise<User> => {
   try {
@@ -55,11 +149,12 @@ export const signup = async (data: SignupData): Promise<User> => {
     });
 
     // Create user document in Firestore
+    const normalizedPhone = normalizePhoneE164(data.phone);
     const userData = {
       uid: user.uid,
       email: user.email,
       name: data.name,
-      phone: data.phone,
+      phone: normalizedPhone,
       role: 'customer',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -72,7 +167,7 @@ export const signup = async (data: SignupData): Promise<User> => {
       uid: user.uid,
       email: user.email || '',
       name: data.name,
-      phone: data.phone,
+      phone: normalizedPhone,
       role: 'customer',
     });
     useAuthStore.getState().setFirebaseUser(user);
@@ -93,8 +188,9 @@ export const login = async (data: LoginData): Promise<User> => {
 
     // Login with phone number
     if (data.phone && !data.email) {
+      const normalizedPhone = normalizePhoneE164(data.phone);
       // Find user by phone number in Firestore
-      const phoneQuery = query(collection(db, 'users'), where('phone', '==', data.phone));
+      const phoneQuery = query(collection(db, 'users'), where('phone', '==', normalizedPhone));
       const phoneSnapshot = await getDocs(phoneQuery);
       
       if (phoneSnapshot.empty) {
@@ -240,16 +336,17 @@ export const updateUserProfile = async (updates: {
       await updateProfile(user, { displayName: updates.name });
     }
 
+    const phone =
+      updates.phone !== undefined ? normalizePhoneE164(updates.phone) : undefined;
+    const merged = {
+      ...updates,
+      ...(phone !== undefined ? { phone } : {}),
+      updatedAt: serverTimestamp(),
+    };
+
     // Update Firestore
     const userRef = doc(db, 'users', user.uid);
-    await setDoc(
-      userRef,
-      {
-        ...updates,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
+    await setDoc(userRef, merged, { merge: true });
 
     // Update auth store
     const currentUser = useAuthStore.getState().user;
@@ -257,6 +354,7 @@ export const updateUserProfile = async (updates: {
       useAuthStore.getState().setUser({
         ...currentUser,
         ...updates,
+        ...(phone !== undefined ? { phone } : {}),
       });
     }
   } catch (error: any) {
@@ -308,110 +406,6 @@ export const initAuth = (): (() => void) => {
   return unsubscribe;
 };
 
-// Send OTP for phone number signup (placeholder for AWS)
-export const sendOTP = async (data: SendOTPData): Promise<void> => {
-  try {
-    // TODO: Integrate with AWS SNS or similar service for OTP
-    // For now, this is a placeholder
-    // In production, this should:
-    // 1. Generate a 6-digit OTP
-    // 2. Store it temporarily (e.g., in Firestore with expiration)
-    // 3. Send SMS via AWS SNS or similar service
-    
-    console.log('OTP placeholder - Phone:', data.phone);
-    console.log('TODO: Integrate with AWS SNS for OTP delivery');
-    
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // For development: Store OTP in sessionStorage (remove in production)
-    if (import.meta.env.DEV) {
-      const mockOTP = '123456'; // Remove in production
-      sessionStorage.setItem(`otp_${data.phone}`, mockOTP);
-      console.warn('DEV MODE: OTP is', mockOTP);
-    }
-  } catch (error: any) {
-    throw new Error(error.message || 'Failed to send OTP');
-  }
-};
-
-// Verify OTP and signup with phone number
-export const signupWithPhone = async (data: SignupWithPhoneData): Promise<User> => {
-  try {
-    // TODO: Verify OTP with AWS service
-    // For now, this is a placeholder
-    
-    // Check if phone already exists
-    const phoneQuery = query(collection(db, 'users'), where('phone', '==', data.phone));
-    const phoneSnapshot = await getDocs(phoneQuery);
-    
-    if (!phoneSnapshot.empty) {
-      throw new Error('Phone number already registered');
-    }
-
-    // Verify OTP (placeholder)
-    if (import.meta.env.DEV) {
-      const storedOTP = sessionStorage.getItem(`otp_${data.phone}`);
-      if (storedOTP !== data.otp) {
-        throw new Error('Invalid OTP');
-      }
-      sessionStorage.removeItem(`otp_${data.phone}`);
-    } else {
-      // TODO: Verify OTP with AWS service
-      throw new Error('OTP verification not implemented. Please use email signup for now.');
-    }
-
-    // Generate a unique email for phone-based accounts
-    // Format: phone_<phone>@tighthug.local
-    const phoneEmail = `phone_${data.phone.replace(/\D/g, '')}@tighthug.local`;
-    
-    // Create user with generated email and password
-    const userCredential = await createUserWithEmailAndPassword(
-      auth,
-      phoneEmail,
-      data.password
-    );
-
-    const user = userCredential.user;
-
-    // Update display name
-    await updateProfile(user, {
-      displayName: data.name,
-    });
-
-    // Create user document in Firestore
-    const userData = {
-      uid: user.uid,
-      email: phoneEmail, // Store generated email
-      name: data.name,
-      phone: data.phone,
-      role: 'customer',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    };
-
-    await setDoc(doc(db, 'users', user.uid), userData);
-
-    // Update auth store
-    useAuthStore.getState().setUser({
-      uid: user.uid,
-      email: phoneEmail,
-      name: data.name,
-      phone: data.phone,
-      role: 'customer',
-    });
-    useAuthStore.getState().setFirebaseUser(user);
-    useAuthStore.getState().setIsAdmin(false);
-
-    // Send welcome email (non-blocking) - skip for phone accounts
-    // sendWelcomeEmail(phoneEmail, data.name).catch(console.error);
-
-    return user;
-  } catch (error: any) {
-    throw new Error(error.message || 'Failed to sign up with phone');
-  }
-};
-
 // Forgot password - send reset email
 export const forgotPassword = async (email: string): Promise<void> => {
   try {
@@ -424,8 +418,9 @@ export const forgotPassword = async (email: string): Promise<void> => {
 // Forgot password - find email by phone number
 export const forgotPasswordByPhone = async (phone: string): Promise<void> => {
   try {
+    const normalizedPhone = normalizePhoneE164(phone);
     // Find user by phone number
-    const phoneQuery = query(collection(db, 'users'), where('phone', '==', phone));
+    const phoneQuery = query(collection(db, 'users'), where('phone', '==', normalizedPhone));
     const phoneSnapshot = await getDocs(phoneQuery);
     
     if (phoneSnapshot.empty) {

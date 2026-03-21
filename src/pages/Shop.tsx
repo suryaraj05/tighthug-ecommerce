@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { SeoHead } from '@/components/seo/SeoHead';
+import { SHOP_DESCRIPTION, SHOP_TITLE } from '@/config/seo';
 import { useSearchParams } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
@@ -97,6 +99,7 @@ const Shop = () => {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <SeoHead title={SHOP_TITLE} description={SHOP_DESCRIPTION} canonicalPath="/shop" />
       <Navbar />
 
       <main className="flex-1">
