@@ -12,6 +12,33 @@ import {
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
+function coerceCouponDate(value: unknown): Date | null {
+  if (value == null) return null;
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'toDate' in value &&
+    typeof (value as { toDate: () => Date }).toDate === 'function'
+  ) {
+    const d = (value as { toDate: () => Date }).toDate();
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'seconds' in value &&
+    typeof (value as { seconds: number }).seconds === 'number'
+  ) {
+    const d = new Date((value as { seconds: number }).seconds * 1000);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(value as string | number);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 export interface Coupon {
   id: string;
   code: string;
@@ -63,7 +90,11 @@ export const getAllCoupons = async (includeInactive: boolean = false): Promise<C
 
 export const getCouponByCode = async (code: string): Promise<Coupon | null> => {
   try {
-    const q = query(collection(db, 'coupons'), where('code', '==', code.toUpperCase()));
+    const normalized = code.trim().toUpperCase();
+    if (!normalized) {
+      return null;
+    }
+    const q = query(collection(db, 'coupons'), where('code', '==', normalized));
     const querySnapshot = await getDocs(q);
 
     if (querySnapshot.empty) {
@@ -102,31 +133,34 @@ export const validateCoupon = async (
     }
 
     const now = new Date();
-    const validFrom = coupon.validFrom?.toDate?.() || new Date(coupon.validFrom);
-    const validTill = coupon.validTill?.toDate?.() || new Date(coupon.validTill);
+    const validFrom = coerceCouponDate(coupon.validFrom);
+    const validTill = coerceCouponDate(coupon.validTill);
 
-    if (now < validFrom) {
+    if (validFrom && now < validFrom) {
       return {
         valid: false,
         error: 'This coupon is not yet valid',
       };
     }
 
-    if (now > validTill) {
+    if (validTill && now > validTill) {
       return {
         valid: false,
         error: 'This coupon has expired',
       };
     }
 
-    if (cartTotal < coupon.minAmount) {
+    const minAmount = Number(coupon.minAmount) || 0;
+    if (cartTotal < minAmount) {
       return {
         valid: false,
-        error: `Minimum order amount of ${coupon.minAmount} required`,
+        error: `Minimum order amount of ${minAmount} required`,
       };
     }
 
-    if (coupon.usageLimit && coupon.usedCount && coupon.usedCount >= coupon.usageLimit) {
+    const usageLimit = coupon.usageLimit ?? 0;
+    const usedCount = coupon.usedCount ?? 0;
+    if (usageLimit > 0 && usedCount >= usageLimit) {
       return {
         valid: false,
         error: 'This coupon has reached its usage limit',
@@ -216,7 +250,8 @@ export const calculateCouponDiscount = (
   coupon: Coupon,
   cartTotal: number
 ): number => {
-  if (cartTotal < coupon.minAmount) {
+  const minAmount = Number(coupon.minAmount) || 0;
+  if (cartTotal < minAmount) {
     return 0;
   }
 

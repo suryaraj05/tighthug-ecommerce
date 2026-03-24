@@ -78,6 +78,20 @@ service cloud.firestore {
       allow update, delete: if isOwner(resource.data.userId) || isAdmin();
     }
     
+    // Contact form messages — public create, admin read/update/delete
+    match /contactMessages/{messageId} {
+      allow create: if request.resource.data.name is string
+        && request.resource.data.email is string
+        && request.resource.data.subject is string
+        && request.resource.data.message is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 200
+        && request.resource.data.email.size() <= 320
+        && request.resource.data.subject.size() <= 300
+        && request.resource.data.message.size() <= 8000;
+      allow read, update, delete: if isAdmin();
+    }
+
     // Mail Collection (for email extension)
     // - Only extension can read
     // - Server/admin can write

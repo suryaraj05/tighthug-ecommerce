@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import type { ConfirmationResult } from 'firebase/auth';
+import type { ConfirmationResult, RecaptchaVerifier } from 'firebase/auth';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,9 @@ import {
   normalizePhoneE164,
   isLikelyIndianMobileE164,
   isValidE164Phone,
-  sendPhoneSignInOTPWithInvisibleRecaptcha,
+  initPhoneRecaptchaCompact,
+  sendPhoneOTPWithVerifier,
+  cleanupPhoneRecaptchaSession,
   confirmPhoneSignInOTP,
   finalizePhoneLogin,
   getFirebasePhoneAuthErrorMessage,
@@ -39,6 +41,9 @@ const Login = () => {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recaptchaVerifier, setRecaptchaVerifier] = useState<RecaptchaVerifier | null>(null);
+  const [recaptchaSolved, setRecaptchaSolved] = useState(false);
+  const [recaptchaReloadKey, setRecaptchaReloadKey] = useState(0);
 
   const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/';
 
@@ -47,6 +52,44 @@ const Login = () => {
     setConfirmation(null);
     setOtp('');
   }, [usePhone, phoneMode, phone]);
+
+  useEffect(() => {
+    if (!usePhone || phoneMode !== 'otp' || codeSent) {
+      cleanupPhoneRecaptchaSession();
+      setRecaptchaVerifier(null);
+      setRecaptchaSolved(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setRecaptchaSolved(false);
+        setError(null);
+        const v = await initPhoneRecaptchaCompact({
+          onSolved: () => {
+            if (!cancelled) setRecaptchaSolved(true);
+          },
+          onExpired: () => {
+            if (!cancelled) setRecaptchaSolved(false);
+          },
+        });
+        if (!cancelled) setRecaptchaVerifier(v);
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) {
+          setError('Could not load reCAPTCHA. Refresh the page and try again.');
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      cleanupPhoneRecaptchaSession();
+      setRecaptchaVerifier(null);
+    };
+  }, [usePhone, phoneMode, codeSent, recaptchaReloadKey]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,10 +136,18 @@ const Login = () => {
       setError('Use E.164 format with country code (e.g. +916281686937).');
       return;
     }
+    if (!recaptchaVerifier) {
+      setError('reCAPTCHA is still loading. Wait a moment.');
+      return;
+    }
+    if (!recaptchaSolved) {
+      setError('Tick “I’m not a robot” below and wait for the green check, then tap Send OTP.');
+      return;
+    }
 
     setIsLoading(true);
     try {
-      const result = await sendPhoneSignInOTPWithInvisibleRecaptcha(normalized);
+      const result = await sendPhoneOTPWithVerifier(normalized, recaptchaVerifier);
       setConfirmation(result);
       setCodeSent(true);
       toast.success('OTP sent', {
@@ -106,10 +157,14 @@ const Login = () => {
       const msg = getFirebasePhoneAuthErrorMessage(err);
       setError(msg);
       toast.error('Could not send OTP', { description: msg });
+      setRecaptchaSolved(false);
+      cleanupPhoneRecaptchaSession();
+      setRecaptchaVerifier(null);
+      setRecaptchaReloadKey((k) => k + 1);
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading, codeSent, phone]);
+  }, [isLoading, codeSent, phone, recaptchaVerifier, recaptchaSolved]);
 
   const handleVerifyOtp = async () => {
     if (!confirmation || otp.replace(/\D/g, '').length < 6) {
@@ -215,7 +270,7 @@ const Login = () => {
                   </div>
 
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Tap Send OTP and complete reCAPTCHA if shown. Keep the area below visible.
+                    Complete “I’m not a robot” below first (green check), then tap Send OTP.
                   </p>
                   <PhoneRecaptchaHost />
 
@@ -224,7 +279,11 @@ const Login = () => {
                       type="button"
                       size="lg"
                       className="w-full"
-                      disabled={isLoading}
+                      disabled={
+                        isLoading ||
+                        !recaptchaVerifier ||
+                        !recaptchaSolved
+                      }
                       onClick={() => void handleSendOtp()}
                     >
                       {isLoading ? 'Sending…' : 'Send OTP'}
@@ -254,6 +313,7 @@ const Login = () => {
                             setCodeSent(false);
                             setConfirmation(null);
                             setOtp('');
+                            setRecaptchaReloadKey((k) => k + 1);
                           }}
                         >
                           Change number

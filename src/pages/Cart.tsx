@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { X, ShoppingBag, ArrowRight } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { validateCoupon } from '@/services/couponService';
 
 const Cart = () => {
   const navigate = useNavigate();
@@ -17,34 +18,31 @@ const Cart = () => {
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
 
   const handleApplyCoupon = async () => {
-    if (!couponCode.trim()) {
+    const code = couponCode.trim();
+    if (!code) {
       toast.error('Please enter a coupon code');
       return;
     }
 
     setIsApplyingCoupon(true);
-    
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    
-    // Demo coupon: SAVE10 for 10% off
-    if (couponCode.toUpperCase() === 'SAVE10') {
-      const discount = Math.round(getSubtotal() * 0.1);
-      applyCoupon('SAVE10', discount);
+    try {
+      const subtotal = getSubtotal();
+      const result = await validateCoupon(code, subtotal);
+      if (!result.valid || result.discountAmount == null) {
+        toast.error(result.error || 'Invalid coupon code');
+        return;
+      }
+      const appliedCode = code.trim().toUpperCase();
+      applyCoupon(appliedCode, result.discountAmount);
       toast.success('Coupon applied successfully!', {
-        description: `You saved ${formatPrice(discount)}`,
+        description: `You saved ${formatPrice(result.discountAmount)}`,
       });
-    } else if (couponCode.toUpperCase() === 'FLAT200') {
-      applyCoupon('FLAT200', 200);
-      toast.success('Coupon applied successfully!', {
-        description: `You saved ${formatPrice(200)}`,
-      });
-    } else {
-      toast.error('Invalid coupon code');
+      setCouponCode('');
+    } catch (e: unknown) {
+      toast.error((e as Error).message || 'Could not apply coupon');
+    } finally {
+      setIsApplyingCoupon(false);
     }
-    
-    setIsApplyingCoupon(false);
-    setCouponCode('');
   };
 
   if (items.length === 0) {

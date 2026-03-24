@@ -10,6 +10,8 @@ import {
   LogOut,
   Menu,
   MessageSquare,
+  Users,
+  Inbox,
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -21,6 +23,8 @@ const menuItems = [
   { path: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/admin/products', label: 'Products', icon: Package },
   { path: '/admin/orders', label: 'Orders', icon: ShoppingBag },
+  { path: '/admin/users', label: 'Users', icon: Users },
+  { path: '/admin/contact-messages', label: 'Contact messages', icon: Inbox },
   { path: '/admin/reviews', label: 'Reviews', icon: MessageSquare },
   { path: '/admin/coupons', label: 'Coupons', icon: Ticket },
   { path: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
@@ -49,7 +53,10 @@ const AdminSidebar = () => {
       <nav className="flex-1 p-4 space-y-2">
         {menuItems.map((item) => {
           const Icon = item.icon;
-          const isActive = location.pathname === item.path;
+          const isActive =
+            item.path === '/admin'
+              ? location.pathname === '/admin'
+              : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
 
           return (
             <Link

@@ -24,6 +24,9 @@ import CouponManager from './pages/Admin/CouponManager';
 import ReviewManager from './pages/Admin/ReviewManager';
 import Analytics from './pages/Admin/Analytics';
 import FinanceControl from './pages/Admin/FinanceControl';
+import UserManagement from './pages/Admin/UserManagement';
+import ContactResponses from './pages/Admin/ContactResponses';
+import WhatsAppFab from './components/WhatsAppFab';
 import SeedData from './pages/SeedData';
 import TrackOrder from './pages/TrackOrder';
 import ReturnsExchanges from './pages/ReturnsExchanges';
@@ -91,16 +94,6 @@ const App = () => {
             <Route path="/terms-of-service" element={<TermsOfService />} />
             <Route path="/index-helper" element={<IndexHelper />} />
 
-            {/* Protected Routes */}
-            <Route
-              path="/orders"
-              element={
-                <ProtectedRoute>
-                  <OrderHistory />
-                </ProtectedRoute>
-              }
-            />
-
             {/* Admin Routes */}
             <Route
               path="/admin"
@@ -158,10 +151,27 @@ const App = () => {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/admin/users"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <UserManagement />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/contact-messages"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <ContactResponses />
+                </ProtectedRoute>
+              }
+            />
 
             {/* 404 */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          <WhatsAppFab />
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>

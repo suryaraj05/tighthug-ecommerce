@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Mail, Phone, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
+import { submitContactMessage } from '@/services/contactService';
 
 const ContactUs = () => {
   const [formData, setFormData] = useState({
@@ -21,16 +22,19 @@ const ContactUs = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-
-    // Simulate form submission
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    toast.success('Message sent!', {
-      description: 'We\'ll get back to you within 24 hours.',
-    });
-
-    setFormData({ name: '', email: '', subject: '', message: '' });
-    setLoading(false);
+    try {
+      await submitContactMessage(formData);
+      toast.success('Message sent!', {
+        description: "We'll get back to you within 24 hours.",
+      });
+      setFormData({ name: '', email: '', subject: '', message: '' });
+    } catch (err: unknown) {
+      toast.error('Could not send message', {
+        description: (err as Error).message,
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -65,21 +69,25 @@ const ContactUs = () => {
                   <Phone className="h-5 w-5 text-muted-foreground mt-1" />
                   <div>
                     <h3 className="font-semibold mb-1">Phone</h3>
-                    <p className="text-muted-foreground">+91 1234567890</p>
-                    <p className="text-sm text-muted-foreground">Mon-Fri, 9 AM - 6 PM IST</p>
+                    <p className="text-muted-foreground">
+                      <a href="tel:+919642208172" className="hover:text-primary">
+                        +91 96422 08172
+                      </a>{' '}
+                      <span className="text-sm">(Call and DM)</span>
+                    </p>
+                    <p className="text-muted-foreground mt-1">
+                      <a href="tel:+918186932004" className="hover:text-primary">
+                        +91 81869 32004
+                      </a>{' '}
+                      <span className="text-sm">(Only DM)</span>
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-start gap-4">
                   <MapPin className="h-5 w-5 text-muted-foreground mt-1" />
                   <div>
                     <h3 className="font-semibold mb-1">Address</h3>
-                    <p className="text-muted-foreground">
-                      123 Fashion Street
-                      <br />
-                      Mumbai, Maharashtra 400001
-                      <br />
-                      India
-                    </p>
+                    <p className="text-muted-foreground">Adilabad</p>
                   </div>
                 </div>
               </CardContent>

@@ -98,15 +98,52 @@ export const syntheticEmailFromPhoneE164 = (e164: string): string => {
   return `phone_${digits}@${domain}`;
 };
 
+export type PhoneRecaptchaCallbacks = {
+  onSolved?: () => void;
+  onExpired?: () => void;
+};
+
 /**
- * Send SMS OTP with Firebase **compact** reCAPTCHA v2 (visible checkbox).
- * Invisible mode + Enterprise→v2 fallback often causes DOM races (`null.style` in recaptcha__en.js).
- * `signInWithPhoneNumber` waits for the user to complete the checkbox/challenge (user gesture from Send OTP).
- *
- * Host: `PhoneRecaptchaHost` — must stay in layout (no aria-hidden on ancestors).
+ * Create and **render** compact reCAPTCHA once. User completes the checkbox **before** tapping Send OTP.
+ * Call from an effect when `PhoneRecaptchaHost` is mounted (container must exist).
  */
-export const sendPhoneSignInOTPWithRecaptcha = async (
-  phoneE164: string
+export const initPhoneRecaptchaCompact = async (
+  callbacks: PhoneRecaptchaCallbacks = {}
+): Promise<RecaptchaVerifier> => {
+  const host = document.getElementById(PHONE_RECAPTCHA_CONTAINER_ID);
+  if (!host) {
+    throw new Error(
+      'reCAPTCHA container is missing. Ensure PhoneRecaptchaHost is rendered above Send OTP.'
+    );
+  }
+
+  cleanupPhoneRecaptchaSession();
+  await delay(50);
+
+  while (host.firstChild) {
+    host.removeChild(host.firstChild);
+  }
+
+  const verifier = new RecaptchaVerifier(auth, PHONE_RECAPTCHA_CONTAINER_ID, {
+    size: 'compact',
+    callback: () => {
+      callbacks.onSolved?.();
+    },
+    'expired-callback': () => {
+      callbacks.onExpired?.();
+    },
+  });
+  activePhoneRecaptchaVerifier = verifier;
+  await verifier.render();
+  return verifier;
+};
+
+/**
+ * Send SMS after the user has completed the compact reCAPTCHA (green check). Uses the **same** verifier instance.
+ */
+export const sendPhoneOTPWithVerifier = async (
+  phoneE164: string,
+  verifier: RecaptchaVerifier
 ): Promise<ConfirmationResult> => {
   const normalized = phoneE164.trim();
   if (!isValidE164Phone(normalized)) {
@@ -119,41 +156,22 @@ export const sendPhoneSignInOTPWithRecaptcha = async (
     console.info('[PhoneAuth] signInWithPhoneNumber', { phoneE164: normalized });
   }
 
-  const host = document.getElementById(PHONE_RECAPTCHA_CONTAINER_ID);
-  if (!host) {
-    throw new Error(
-      'reCAPTCHA container is missing. Ensure PhoneRecaptchaHost is rendered above Send OTP.'
-    );
-  }
-
-  cleanupPhoneRecaptchaSession();
-  await delay(100);
-
-  while (host.firstChild) {
-    host.removeChild(host.firstChild);
-  }
-
-  const verifier = new RecaptchaVerifier(auth, PHONE_RECAPTCHA_CONTAINER_ID, {
-    size: 'compact',
-    callback: () => {
-      /* optional; token consumed by signInWithPhoneNumber */
-    },
-    'expired-callback': () => {
-      /* user taps Send OTP again */
-    },
-  });
-  activePhoneRecaptchaVerifier = verifier;
-
   try {
-    await verifier.render();
-    await delay(300);
     return await signInWithPhoneNumber(auth, normalized, verifier);
   } finally {
     schedulePhoneRecaptchaCleanup(400);
   }
 };
 
-/** @deprecated Alias — implementation uses compact v2, not invisible. */
+/** One-shot helper (e.g. tests): init + send in one call — prefer init + Send OTP in UI. */
+export const sendPhoneSignInOTPWithRecaptcha = async (
+  phoneE164: string
+): Promise<ConfirmationResult> => {
+  const v = await initPhoneRecaptchaCompact();
+  await delay(300);
+  return sendPhoneOTPWithVerifier(phoneE164, v);
+};
+
 export const sendPhoneSignInOTPWithInvisibleRecaptcha = sendPhoneSignInOTPWithRecaptcha;
 
 /** Raw Firebase `code` if present (e.g. `auth/invalid-app-credential`). */

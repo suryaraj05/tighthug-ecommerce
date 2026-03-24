@@ -115,7 +115,7 @@ const Footer = () => {
             <h3 className="font-display text-sm font-semibold uppercase tracking-wider">Connect</h3>
             <div className="flex space-x-4">
               <a
-                href="https://instagram.com"
+                href="https://www.instagram.com/tighthugofficial?utm_source=qr&igsh=MXBxeWswdnF3ZGs5aQ=="
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-primary-foreground/70 hover:text-primary-foreground transition-colors"
