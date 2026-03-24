@@ -72,6 +72,8 @@ const ProductManager = () => {
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [customCategory, setCustomCategory] = useState('');
+  /** When true, category comes from `customCategory`; keeps Select on "__custom__" while typing. */
+  const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [showCsvUpload, setShowCsvUpload] = useState(false);
 
@@ -112,11 +114,17 @@ const ProductManager = () => {
     });
     setImageFiles([]);
     setImagePreviews([]);
+    setCustomCategory('');
+    setIsCustomCategory(false);
     setShowAddModal(true);
   };
 
   const handleOpenEditModal = (product: Product) => {
     setEditingProduct(product);
+    const presetCategories = CATEGORIES as readonly string[];
+    const inPreset = presetCategories.includes(product.category);
+    setIsCustomCategory(!inPreset);
+    setCustomCategory(inPreset ? '' : product.category);
     setFormData({
       name: product.name,
       description: product.description,
@@ -125,7 +133,7 @@ const ProductManager = () => {
       discountPercentage: product.discountPercentage?.toString() || '',
       isHighlighted: product.isHighlighted || false,
       salesCount: product.salesCount?.toString() || '',
-      category: product.category,
+      category: inPreset ? product.category : '',
       season: product.season,
       sizes: product.sizes,
       stock: product.stock,
@@ -259,6 +267,17 @@ const ProductManager = () => {
 
       const price = parseFloat(formData.price);
       const originalPrice = formData.originalPrice ? parseFloat(formData.originalPrice) : null;
+
+      const category = (isCustomCategory ? customCategory : formData.category).trim();
+      if (!category) {
+        toast.error('Category is required', {
+          description: isCustomCategory
+            ? 'Enter a custom category name.'
+            : 'Select a category from the list.',
+        });
+        setUploading(false);
+        return;
+      }
       
       // Calculate discount percentage if original price is provided
       let discountPercentage: number | null = null;
@@ -273,7 +292,7 @@ const ProductManager = () => {
         name: formData.name,
         description: formData.description,
         price,
-        category: formData.category,
+        category,
         season: formData.season,
         sizes: formData.sizes,
         stock: formData.stock,
@@ -574,14 +593,21 @@ const ProductManager = () => {
                   <Label htmlFor="category">Category *</Label>
                   <div className="space-y-2">
                     <Select
-                      value={formData.category}
+                      value={isCustomCategory ? '__custom__' : formData.category || undefined}
                       onValueChange={(value) => {
-                        setFormData({ ...formData, category: value });
-                        setCustomCategory('');
+                        if (value === '__custom__') {
+                          setIsCustomCategory(true);
+                          setCustomCategory('');
+                          setFormData({ ...formData, category: '' });
+                        } else {
+                          setIsCustomCategory(false);
+                          setCustomCategory('');
+                          setFormData({ ...formData, category: value });
+                        }
                       }}
                       required
                     >
-                      <SelectTrigger>
+                      <SelectTrigger id="category">
                         <SelectValue placeholder="Select or enter category" />
                       </SelectTrigger>
                       <SelectContent>
@@ -593,14 +619,12 @@ const ProductManager = () => {
                         <SelectItem value="__custom__">+ Add Custom Category</SelectItem>
                       </SelectContent>
                     </Select>
-                    {formData.category === '__custom__' && (
+                    {isCustomCategory && (
                       <Input
+                        id="custom-category"
                         placeholder="Enter custom category name"
                         value={customCategory}
-                        onChange={(e) => {
-                          setCustomCategory(e.target.value);
-                          setFormData({ ...formData, category: e.target.value });
-                        }}
+                        onChange={(e) => setCustomCategory(e.target.value)}
                         required
                       />
                     )}
