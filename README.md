@@ -1,6 +1,6 @@
 # TightHug - Premium Streetwear E-Commerce Platform 
 
-A modern, full-featured e-commerce platform built for TightHug, offering premium streetwear products with a seamless shopping experience. 
+A modern, full-featured e-commerce platform built for TightHug, offering premium streetwear products with a seamless shopping experience.
  
 ## Project Overview
  
