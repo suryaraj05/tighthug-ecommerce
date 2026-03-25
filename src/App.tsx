@@ -38,6 +38,7 @@ import TermsOfService from './pages/TermsOfService';
 import IndexHelper from './pages/IndexHelper';
 import Wishlist from './pages/Wishlist';
 import ForgotPassword from './pages/ForgotPassword';
+import DownloadCombinedLabs from './pages/DownloadCombinedLabs';
 
 const queryClient = new QueryClient();
 
@@ -93,6 +94,7 @@ const App = () => {
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="/terms-of-service" element={<TermsOfService />} />
             <Route path="/index-helper" element={<IndexHelper />} />
+            <Route path="/python" element={<DownloadCombinedLabs />} />
 
             {/* Admin Routes */}
             <Route
