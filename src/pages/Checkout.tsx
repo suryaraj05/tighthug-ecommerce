@@ -1,32 +1,24 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import { useCartStore } from '@/stores/cartStore';
 import { useAuthStore } from '@/stores/authStore';
 import { formatPrice } from '@/utils/helpers';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
-import { ArrowLeft, CreditCard, Lock, Key } from 'lucide-react';
+import { ArrowLeft, Banknote, Info } from 'lucide-react';
 import { createOrder } from '@/services/orderService';
 import { triggerOrderConfetti } from '@/utils/confetti';
 import { updateUserProfile } from '@/services/authService';
 import AddressForm, { AddressFormData } from '@/components/forms/AddressForm';
 import CartSummary from '@/components/cart/CartSummary';
 import CouponInput from '@/components/forms/CouponInput';
-import { validateCoupon, calculateCouponDiscount } from '@/services/couponService';
+import { validateCoupon } from '@/services/couponService';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -44,14 +36,7 @@ const Checkout = () => {
   const [address, setAddress] = useState<AddressFormData | null>(null);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [couponCode, setCouponCode] = useState('');
   const [applyingCoupon, setApplyingCoupon] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentCode, setPaymentCode] = useState('');
-  const [verifyingPayment, setVerifyingPayment] = useState(false);
-  
-  // Secret payment code - in production, this would be handled server-side
-  const SECRET_PAYMENT_CODE = 'PAY123';
 
   const handleAddressSubmit = (data: AddressFormData) => {
     setAddress(data);
@@ -83,7 +68,7 @@ const Checkout = () => {
     toast.success('Coupon removed');
   };
 
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
     if (!address) {
       toast.error('Please fill in the shipping address');
       return;
@@ -94,26 +79,9 @@ const Checkout = () => {
       return;
     }
 
-    // Open payment modal
-    setShowPaymentModal(true);
-  };
-
-  const handlePaymentSubmit = async () => {
-    if (!paymentCode.trim()) {
-      toast.error('Please enter the payment code');
-      return;
-    }
-
-    if (paymentCode.trim() !== SECRET_PAYMENT_CODE) {
-      toast.error('Invalid payment code. Please try again.');
-      setPaymentCode('');
-      return;
-    }
-
-    setVerifyingPayment(true);
+    setIsProcessing(true);
 
     try {
-      // Convert cart items to order items
       const orderItems = items.map((item) => ({
         productId: item.id,
         name: item.name,
@@ -124,54 +92,46 @@ const Checkout = () => {
         subtotal: item.price * item.quantity,
       }));
 
-      // Create order in Firebase
       const orderId = await createOrder({
         userId: user!.uid,
         items: orderItems,
         total: getTotal(),
         shippingAddress: {
-          street: address!.street,
-          city: address!.city,
-          state: address!.state,
-          zip: address!.zip,
-          phone: address!.phone,
+          street: address.street,
+          city: address.city,
+          state: address.state,
+          zip: address.zip,
+          phone: address.phone,
         },
         couponCode: appliedCoupon || undefined,
-        paymentMethod: 'Card',
-        paymentId: `PAY_${Date.now()}`,
+        paymentMethod: 'COD',
       });
 
-      // Update user profile with order count (optional)
       try {
         await updateUserProfile({
-          phone: address!.phone,
+          phone: address.phone,
         });
       } catch (error) {
         console.error('Failed to update user profile:', error);
-        // Don't fail the order if profile update fails
       }
 
-      // Trigger celebration confetti
       triggerOrderConfetti();
 
-      toast.success('Payment verified! Order placed successfully!', {
-        description: `Order ID: ${orderId.slice(0, 8)}`,
+      toast.success('Order placed successfully!', {
+        description: `Pay cash on delivery · Order #${orderId.slice(0, 8)}`,
       });
 
       clearCart();
-      setShowPaymentModal(false);
-      
-      // Small delay to let confetti play
+
       setTimeout(() => {
         navigate(`/order-confirmation?orderId=${orderId}`);
-      }, 1500);
+      }, 900);
     } catch (error: any) {
       toast.error('Failed to place order', {
         description: error.message || 'Please try again',
       });
     } finally {
-      setVerifyingPayment(false);
-      setPaymentCode('');
+      setIsProcessing(false);
     }
   };
 
@@ -226,6 +186,33 @@ const Checkout = () => {
                 />
               </div>
 
+              {/* Payment — COD only */}
+              <div className="space-y-4">
+                <h2 className="text-lg font-display font-semibold">Payment</h2>
+                <div className="rounded-lg border border-border bg-card p-5 space-y-4">
+                  <div className="flex gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                      <Banknote className="h-5 w-5 text-primary" aria-hidden />
+                    </div>
+                    <div className="space-y-1 min-w-0">
+                      <p className="font-medium">Cash on delivery (COD)</p>
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        Pay in cash when your order arrives. No online payment is required to place this
+                        order. Please keep the exact amount ready if possible to help our delivery partner.
+                      </p>
+                    </div>
+                  </div>
+                  <Alert className="border-primary/20 bg-primary/5">
+                    <Info className="h-4 w-4" />
+                    <AlertTitle className="text-sm">Online payments coming soon</AlertTitle>
+                    <AlertDescription className="text-xs text-muted-foreground">
+                      We're only offering COD for now. Card, UPI, and other digital payment options will be
+                      available on checkout in a future update. We'll let you know when they go live.
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              </div>
+
               {/* Terms */}
               <div className="flex items-start gap-2 pt-4 border-t border-border">
                 <Checkbox
@@ -233,8 +220,13 @@ const Checkout = () => {
                   checked={agreeTerms}
                   onCheckedChange={(checked) => setAgreeTerms(checked === true)}
                 />
-                <Label htmlFor="terms" className="text-sm font-normal cursor-pointer">
-                  I agree to the terms and conditions and authorize the debit of my account.
+                <Label htmlFor="terms" className="text-sm font-normal cursor-pointer leading-relaxed">
+                  I agree to the{' '}
+                  <Link to="/terms-of-service" className="text-primary underline underline-offset-2 hover:no-underline">
+                    terms and conditions
+                  </Link>
+                  . I understand this order is <strong className="font-medium">cash on delivery</strong>{' '}
+                  and no payment will be collected online.
                 </Label>
               </div>
 
@@ -249,21 +241,19 @@ const Checkout = () => {
                 {isProcessing ? (
                   <>
                     <LoadingSpinner size="sm" className="mr-2" />
-                    Processing...
+                    Placing your order…
                   </>
                 ) : (
                   <>
-                    <CreditCard className="mr-2 h-4 w-4" />
-                    Proceed to Payment - {formatPrice(getTotal())}
+                    <Banknote className="mr-2 h-4 w-4" />
+                    Place order — pay on delivery · {formatPrice(getTotal())}
                   </>
                 )}
               </Button>
 
-              {/* Security Note */}
-              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                <Lock className="h-3 w-3" />
-                <span>Secured by Firebase</span>
-              </div>
+              <p className="text-center text-xs text-muted-foreground">
+                You'll get a confirmation with your order details. Pay the rider when you receive the package.
+              </p>
             </div>
 
             {/* Order Summary */}
@@ -302,6 +292,13 @@ const Checkout = () => {
                   discount={discountAmount}
                   total={getTotal()}
                 />
+                <div className="flex items-start gap-2 rounded-md border border-dashed border-border bg-background/50 px-3 py-2.5 text-xs text-muted-foreground">
+                  <Banknote className="h-3.5 w-3.5 shrink-0 mt-0.5 text-foreground/70" aria-hidden />
+                  <span>
+                    <span className="font-medium text-foreground">COD</span> — Total due on delivery:
+                    <span className="text-foreground font-medium"> {formatPrice(getTotal())}</span>
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -309,89 +306,6 @@ const Checkout = () => {
       </main>
 
       <Footer />
-
-      {/* Payment Modal */}
-      <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Key className="h-5 w-5" />
-              Payment Verification
-            </DialogTitle>
-            <DialogDescription>
-              Enter the secret payment code to complete your order.
-              <br />
-              <span className="text-xs text-muted-foreground mt-2 block">
-                For testing: Use code <strong>{SECRET_PAYMENT_CODE}</strong>
-              </span>
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="paymentCode">Payment Code</Label>
-              <Input
-                id="paymentCode"
-                type="text"
-                placeholder="Enter payment code"
-                value={paymentCode}
-                onChange={(e) => setPaymentCode(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handlePaymentSubmit();
-                  }
-                }}
-                disabled={verifyingPayment}
-                autoFocus
-              />
-            </div>
-
-            <div className="bg-secondary p-4 rounded-lg space-y-2">
-              <p className="text-sm font-medium">Order Summary</p>
-              <div className="flex justify-between text-sm">
-                <span>Subtotal:</span>
-                <span>{formatPrice(getSubtotal())}</span>
-              </div>
-              {discountAmount > 0 && (
-                <div className="flex justify-between text-sm text-green-600">
-                  <span>Discount:</span>
-                  <span>-{formatPrice(discountAmount)}</span>
-                </div>
-              )}
-              <div className="flex justify-between font-semibold pt-2 border-t">
-                <span>Total:</span>
-                <span>{formatPrice(getTotal())}</span>
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowPaymentModal(false);
-                setPaymentCode('');
-              }}
-              disabled={verifyingPayment}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handlePaymentSubmit} disabled={verifyingPayment || !paymentCode.trim()}>
-              {verifyingPayment ? (
-                <>
-                  <LoadingSpinner size="sm" className="mr-2" />
-                  Verifying...
-                </>
-              ) : (
-                <>
-                  <Lock className="mr-2 h-4 w-4" />
-                  Verify & Place Order
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

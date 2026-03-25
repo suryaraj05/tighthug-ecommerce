@@ -110,8 +110,16 @@ const OrderConfirmation = () => {
               Thank You for Your Order!
             </h1>
             <p className="text-muted-foreground max-w-md mx-auto">
-              Your order has been placed successfully. We've sent a confirmation email to your registered email address.
+              Your order has been placed successfully. We've sent a confirmation email to your registered email
+              address.
             </p>
+            {order.paymentMethod === 'COD' && (
+              <p className="text-sm text-foreground/90 max-w-md mx-auto rounded-lg border bg-secondary/80 px-4 py-3">
+                <span className="font-medium">Cash on delivery:</span> Pay{' '}
+                <span className="font-semibold">{formatPrice(order.total)}</span> when your order arrives. Online
+                payments are not charged for this order.
+              </p>
+            )}
           </div>
 
           {/* Order ID */}

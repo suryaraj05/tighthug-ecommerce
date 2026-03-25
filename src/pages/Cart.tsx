@@ -219,10 +219,10 @@ const Cart = () => {
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
 
-                {/* Trust Badges */}
-                <div className="text-center space-y-2 pt-4">
-                  <p className="text-xs text-muted-foreground">Secure checkout powered by</p>
-                  <p className="text-sm font-medium">Razorpay</p>
+                <div className="text-center space-y-1 pt-4">
+                  <p className="text-xs text-muted-foreground">
+                    Pay on delivery · No online payment required at checkout
+                  </p>
                 </div>
               </div>
             </div>
