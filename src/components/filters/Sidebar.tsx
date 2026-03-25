@@ -10,6 +10,8 @@ interface SidebarProps {
   categories: string[];
   seasons: string[];
   priceRange: { min: number; max: number };
+  /** Categories present in Firestore (preset + custom) for filter checkboxes */
+  catalogCategories?: string[];
   onFiltersChange: (filters: {
     categories: string[];
     seasons: string[];
@@ -17,7 +19,7 @@ interface SidebarProps {
   }) => void;
 }
 
-const Sidebar = ({ categories, seasons, priceRange, onFiltersChange }: SidebarProps) => {
+const Sidebar = ({ categories, seasons, priceRange, catalogCategories, onFiltersChange }: SidebarProps) => {
   const [localCategories, setLocalCategories] = useState(categories);
   const [localSeasons, setLocalSeasons] = useState(seasons);
   const [localPriceRange, setLocalPriceRange] = useState(priceRange);
@@ -48,7 +50,11 @@ const Sidebar = ({ categories, seasons, priceRange, onFiltersChange }: SidebarPr
 
   const filterContent = (
     <div className="space-y-6 p-4">
-      <CategoryFilter selected={localCategories} onChange={setLocalCategories} />
+      <CategoryFilter
+        selected={localCategories}
+        onChange={setLocalCategories}
+        catalogCategories={catalogCategories}
+      />
       <SeasonFilter selected={localSeasons} onChange={setLocalSeasons} />
       <PriceRangeFilter
         min={localPriceRange.min}

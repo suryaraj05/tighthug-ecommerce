@@ -11,10 +11,21 @@ import ImageGallery from '@/components/products/ImageGallery';
 import { formatPrice } from '@/utils/helpers';
 import { getProductById, getProductsByCategory, Product } from '@/services/productService';
 import { useCartStore } from '@/stores/cartStore';
+import { useAuthStore } from '@/stores/authStore';
 import { useWishlistStore } from '@/stores/wishlistStore';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Heart, Share2, Truck, RotateCcw, ShieldCheck, Ruler, Star } from 'lucide-react';
+import {
+  ArrowLeft,
+  Heart,
+  Share2,
+  Truck,
+  RotateCcw,
+  ShieldCheck,
+  Ruler,
+  Star,
+  Zap,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import Modal from '@/components/modals/Modal';
@@ -32,6 +43,7 @@ const ProductDetail = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const addItem = useCartStore((state) => state.addItem);
+  const user = useAuthStore((state) => state.user);
   const { addItem: addToWishlist, removeItem: removeFromWishlist, isInWishlist } = useWishlistStore();
 
   const [product, setProduct] = useState<Product | null>(null);
@@ -101,13 +113,12 @@ const ProductDetail = () => {
     }
   };
 
-  const handleAddToCart = () => {
+  const buildCartLineItem = () => {
     if (!product || !selectedSize) {
       toast.error('Please select a size');
-      return;
+      return null;
     }
 
-    // Get variant-specific stock if color is selected
     let stock = product.stock[selectedSize] || 0;
     if (selectedColor && product.variants) {
       const variant = product.variants.find((v) => v.color === selectedColor);
@@ -118,10 +129,9 @@ const ProductDetail = () => {
 
     if (stock < quantity) {
       toast.error(`Only ${stock} items available in size ${selectedSize}`);
-      return;
+      return null;
     }
 
-    // Get variant-specific price if available
     let price = product.price;
     if (selectedColor && product.variants) {
       const variant = product.variants.find((v) => v.color === selectedColor);
@@ -130,7 +140,6 @@ const ProductDetail = () => {
       }
     }
 
-    // Get variant-specific images if available
     let images = product.images;
     if (selectedColor && product.variants) {
       const variant = product.variants.find((v) => v.color === selectedColor);
@@ -139,7 +148,7 @@ const ProductDetail = () => {
       }
     }
 
-    addItem({
+    return {
       id: product.id,
       name: `${product.name}${selectedColor ? ` - ${selectedColor}` : ''}`,
       price,
@@ -147,15 +156,42 @@ const ProductDetail = () => {
       quantity,
       image: images[0] || '',
       category: product.category,
-    });
+    };
+  };
 
-    toast.success(`${product.name} added to cart`, {
-      description: `Size: ${selectedSize}${selectedColor ? ` | Color: ${selectedColor}` : ''} | Qty: ${quantity}`,
+  const handleAddToCart = () => {
+    const line = buildCartLineItem();
+    if (!line) return;
+
+    addItem(line);
+
+    toast.success(`${product!.name} added to cart`, {
+      description: `Size: ${line.size}${selectedColor ? ` | Color: ${selectedColor}` : ''} | Qty: ${line.quantity}`,
       action: {
         label: 'View Cart',
         onClick: () => navigate('/cart'),
       },
     });
+  };
+
+  const handleBuyNow = () => {
+    const line = buildCartLineItem();
+    if (!line) return;
+
+    addItem(line);
+
+    if (!user) {
+      toast.info('Sign in to checkout', {
+        description: 'Your item is saved in your cart. Log in to continue.',
+      });
+      navigate('/login', { state: { from: { pathname: '/checkout' } } });
+      return;
+    }
+
+    toast.success('Heading to checkout', {
+      description: `${product!.name} — ${line.size} × ${line.quantity}`,
+    });
+    navigate('/checkout');
   };
 
   const handleWishlistToggle = () => {
@@ -400,28 +436,42 @@ const ProductDetail = () => {
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3">
-                <Button
-                  size="lg"
-                  className="flex-1"
-                  onClick={handleAddToCart}
-                  disabled={!selectedSize || maxQuantity === 0}
-                >
-                  {maxQuantity === 0 ? 'Out of Stock' : 'Add to Cart'}
-                </Button>
-                <Button
-                  size="lg"
-                  variant="outline"
-                  onClick={handleWishlistToggle}
-                  className={isInWishlist(product.id) ? 'bg-red-50 border-red-200' : ''}
-                >
-                  <Heart
-                    className={`h-5 w-5 ${isInWishlist(product.id) ? 'fill-red-500 text-red-500' : ''}`}
-                  />
-                </Button>
-                <Button size="lg" variant="outline" onClick={handleShare}>
-                  <Share2 className="h-5 w-5" />
-                </Button>
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button
+                    size="lg"
+                    className="flex-1"
+                    onClick={handleAddToCart}
+                    disabled={!selectedSize || maxQuantity === 0}
+                  >
+                    {maxQuantity === 0 ? 'Out of Stock' : 'Add to Cart'}
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="secondary"
+                    className="flex-1"
+                    onClick={handleBuyNow}
+                    disabled={!selectedSize || maxQuantity === 0}
+                  >
+                    <Zap className="h-4 w-4 mr-2" />
+                    Buy Now
+                  </Button>
+                </div>
+                <div className="flex gap-3">
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className={`flex-1 sm:flex-none ${isInWishlist(product.id) ? 'bg-red-50 border-red-200' : ''}`}
+                    onClick={handleWishlistToggle}
+                  >
+                    <Heart
+                      className={`h-5 w-5 ${isInWishlist(product.id) ? 'fill-red-500 text-red-500' : ''}`}
+                    />
+                  </Button>
+                  <Button size="lg" variant="outline" onClick={handleShare}>
+                    <Share2 className="h-5 w-5" />
+                  </Button>
+                </div>
               </div>
 
               {/* Features */}

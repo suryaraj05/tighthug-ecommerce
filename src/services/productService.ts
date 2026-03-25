@@ -452,3 +452,20 @@ export const deleteProduct = async (productId: string): Promise<void> => {
     throw new Error(error.message || 'Failed to delete product');
   }
 };
+
+/** Unique category strings from all products (preset + custom), sorted alphabetically. */
+export const getDistinctProductCategories = async (): Promise<string[]> => {
+  try {
+    const snapshot = await getDocs(collection(db, 'products'));
+    const set = new Set<string>();
+    snapshot.forEach((d) => {
+      const c = d.data().category;
+      if (typeof c === 'string' && c.trim()) {
+        set.add(c.trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  } catch (error: any) {
+    throw new Error(error.message || 'Failed to load categories');
+  }
+};

@@ -6,7 +6,7 @@ import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import ProductGrid from '@/components/products/ProductGrid';
 import Sidebar from '@/components/filters/Sidebar';
-import { getProducts, Product } from '@/services/productService';
+import { getProducts, getDistinctProductCategories, Product } from '@/services/productService';
 import { Button } from '@/components/ui/button';
 import { SlidersHorizontal } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -32,6 +32,13 @@ const Shop = () => {
   const [priceRange, setPriceRange] = useState({ min: 0, max: 10000 });
   const [sortBy, setSortBy] = useState<'price-asc' | 'price-desc' | 'newest'>('newest');
   const [searchQuery, setSearchQuery] = useState('');
+  const [catalogCategories, setCatalogCategories] = useState<string[]>([]);
+
+  useEffect(() => {
+    getDistinctProductCategories()
+      .then(setCatalogCategories)
+      .catch(() => setCatalogCategories([]));
+  }, []);
 
   // Handle URL params
   useEffect(() => {
@@ -151,6 +158,7 @@ const Shop = () => {
                     categories={categories}
                     seasons={seasons}
                     priceRange={priceRange}
+                    catalogCategories={catalogCategories}
                     onFiltersChange={handleFiltersChange}
                   />
                 </div>

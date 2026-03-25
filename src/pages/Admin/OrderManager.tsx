@@ -23,13 +23,18 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { formatPrice, formatDate } from '@/utils/helpers';
 import { toast } from 'sonner';
-import { getAllOrders } from '@/services/adminService';
+import {
+  getAllOrders,
+  getCustomerSummariesByUserIds,
+  OrderCustomerSummary,
+} from '@/services/adminService';
 import { updateOrderStatus, Order } from '@/services/orderService';
 import { ORDER_STATUS } from '@/utils/constants';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
@@ -42,6 +47,7 @@ const OrderManager = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
+  const [customerByUserId, setCustomerByUserId] = useState<Record<string, OrderCustomerSummary>>({});
 
   useEffect(() => {
     loadOrders();
@@ -50,11 +56,32 @@ const OrderManager = () => {
   const loadOrders = async () => {
     setLoading(true);
     try {
-      const allOrders = await getAllOrders({
-        status: statusFilter,
-        search: searchQuery,
-      });
-      setOrders(allOrders);
+      const raw = await getAllOrders({ status: statusFilter });
+      const userIds = [...new Set(raw.map((o) => o.userId).filter(Boolean))];
+      const summaries = await getCustomerSummariesByUserIds(userIds);
+      setCustomerByUserId(summaries);
+
+      const q = searchQuery.trim().toLowerCase();
+      let list = raw;
+      if (q) {
+        list = raw.filter((order) => {
+          const matchesId = order.id.toLowerCase().includes(q);
+          const matchesItems = order.items.some((item) =>
+            item.name.toLowerCase().includes(q)
+          );
+          const c = summaries[order.userId];
+          const phoneNorm = (c?.phone || '').replace(/\s/g, '');
+          const qDigits = q.replace(/\D/g, '');
+          const matchesCustomer =
+            !!c &&
+            ((c.name || '').toLowerCase().includes(q) ||
+              (c.email || '').toLowerCase().includes(q) ||
+              (phoneNorm && phoneNorm.includes(q.replace(/\s/g, ''))) ||
+              (qDigits.length >= 6 && phoneNorm.replace(/\D/g, '').includes(qDigits)));
+          return matchesId || matchesItems || matchesCustomer;
+        });
+      }
+      setOrders(list);
     } catch (error: any) {
       toast.error('Failed to load orders', {
         description: error.message,
@@ -187,7 +214,18 @@ const OrderManager = () => {
                           <TableCell className="font-mono text-xs">
                             {order.id.slice(0, 8)}
                           </TableCell>
-                          <TableCell>{order.userId.slice(0, 8)}...</TableCell>
+                          <TableCell>
+                            <div className="text-sm">
+                              <p className="font-medium">
+                                {customerByUserId[order.userId]?.name || '—'}
+                              </p>
+                              <p className="text-xs text-muted-foreground truncate max-w-[180px]">
+                                {customerByUserId[order.userId]?.email ||
+                                  customerByUserId[order.userId]?.phone ||
+                                  order.userId.slice(0, 10) + '...'}
+                              </p>
+                            </div>
+                          </TableCell>
                           <TableCell>{order.items.length}</TableCell>
                           <TableCell>{formatPrice(order.total)}</TableCell>
                           <TableCell>
@@ -237,10 +275,42 @@ const OrderManager = () => {
         <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
           <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Order Details</DialogTitle>
+              <DialogTitle>Customer & order details</DialogTitle>
+              <DialogDescription>
+                Account that placed this order and full order breakdown.
+              </DialogDescription>
             </DialogHeader>
             {selectedOrder && (
               <div className="space-y-4">
+                <div className="rounded-lg border bg-muted/40 p-4 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Customer
+                  </p>
+                  {(() => {
+                    const c = customerByUserId[selectedOrder.userId];
+                    return (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <p className="text-muted-foreground text-xs">Name</p>
+                          <p className="font-medium">{c?.name || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground text-xs">Email</p>
+                          <p className="break-all">{c?.email || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground text-xs">Account phone</p>
+                          <p>{c?.phone || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground text-xs">User ID</p>
+                          <p className="font-mono text-xs break-all">{selectedOrder.userId}</p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm font-medium text-gray-500">Order ID</p>

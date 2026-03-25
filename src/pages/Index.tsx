@@ -5,7 +5,7 @@ import Navbar from '@/components/layout/Navbar';
 import Footer from '@/components/layout/Footer';
 import ProductGrid from '@/components/products/ProductGrid';
 import Sidebar from '@/components/filters/Sidebar';
-import { getProducts, Product } from '@/services/productService';
+import { getProducts, getDistinctProductCategories, Product } from '@/services/productService';
 import { Button } from '@/components/ui/button';
 import { SlidersHorizontal } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -31,6 +31,13 @@ const Index = () => {
   const [seasons, setSeasons] = useState<string[]>([]);
   const [priceRange, setPriceRange] = useState({ min: 0, max: 10000 });
   const [sortBy, setSortBy] = useState<'price-asc' | 'price-desc' | 'newest'>('newest');
+  const [catalogCategories, setCatalogCategories] = useState<string[]>([]);
+
+  useEffect(() => {
+    getDistinctProductCategories()
+      .then(setCatalogCategories)
+      .catch(() => setCatalogCategories([]));
+  }, []);
 
   useEffect(() => {
     loadProducts();
@@ -100,37 +107,41 @@ const Index = () => {
 
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="relative h-[70vh] md:h-[85vh] overflow-hidden bg-secondary">
+        <section className="relative h-[min(42vh,380px)] sm:h-[min(52vh,520px)] md:h-[70vh] lg:h-[85vh] overflow-hidden bg-secondary">
           <img
             src={heroImage}
             alt="TightHug Collection"
-            className="absolute inset-0 w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover object-[center_20%] md:object-center"
             loading="eager"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background/85 via-background/20 to-transparent md:from-background/80 md:via-transparent" />
           <div className="absolute inset-0 flex items-end">
-            <div className="container pb-16 md:pb-24">
-              <div className="max-w-2xl space-y-6 animate-slide-up">
-                <span className="inline-block text-sm font-medium tracking-widest uppercase text-foreground/70">
+            <div className="container pb-6 pt-8 md:pb-24 md:pt-0">
+              <div className="max-w-2xl space-y-3 md:space-y-6 animate-slide-up">
+                <span className="inline-block text-xs md:text-sm font-medium tracking-widest uppercase text-foreground/70">
                   New Collection
                 </span>
-                <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-bold leading-[0.9] tracking-tight">
+                <h1 className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl font-display font-bold leading-[0.95] md:leading-[0.9] tracking-tight">
                   Embrace
                   <br />
                   Your Style
                 </h1>
-                <p className="text-lg text-foreground/70 max-w-md">
+                <p className="text-sm md:text-lg text-foreground/80 md:text-foreground/70 max-w-md line-clamp-2 md:line-clamp-none">
                   Premium streetwear designed for comfort and self-expression. Quality fabrics,
                   timeless designs.
                 </p>
-                <div className="flex gap-4 pt-2">
+                <div className="flex flex-wrap gap-2 sm:gap-4 pt-1 md:pt-2">
                   <Link to="/shop">
-                    <Button size="lg" className="px-8">
+                    <Button size="sm" className="h-9 px-5 md:h-11 md:px-8">
                       Shop Now
                     </Button>
                   </Link>
                   <Link to="/new-arrivals">
-                    <Button size="lg" variant="outline" className="px-8 bg-background/80 backdrop-blur-sm">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 px-5 md:h-11 md:px-8 bg-background/80 backdrop-blur-sm"
+                    >
                       New Arrivals
                     </Button>
                   </Link>
@@ -141,10 +152,10 @@ const Index = () => {
         </section>
 
         {/* Products Section */}
-        <section className="py-16 md:py-24">
+        <section className="py-8 md:py-24">
           <div className="container">
             {/* Section Header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-12">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6 md:mb-12">
               <div>
                 <h2 className="text-3xl md:text-4xl font-display font-bold">Shop All</h2>
                 <p className="text-muted-foreground mt-2">
@@ -166,6 +177,7 @@ const Index = () => {
                       categories={categories}
                       seasons={seasons}
                       priceRange={priceRange}
+                      catalogCategories={catalogCategories}
                       onFiltersChange={handleFiltersChange}
                     />
                   </SheetContent>
@@ -194,6 +206,7 @@ const Index = () => {
                     categories={categories}
                     seasons={seasons}
                     priceRange={priceRange}
+                    catalogCategories={catalogCategories}
                     onFiltersChange={handleFiltersChange}
                   />
                 </div>

@@ -70,10 +70,44 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
   }
 };
 
-export const getAllOrders = async (filters?: {
-  status?: string;
-  search?: string;
-}): Promise<Order[]> => {
+export interface OrderCustomerSummary {
+  uid: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+}
+
+export const getCustomerSummariesByUserIds = async (
+  userIds: string[]
+): Promise<Record<string, OrderCustomerSummary>> => {
+  const unique = [...new Set(userIds.filter(Boolean))];
+  const out: Record<string, OrderCustomerSummary> = {};
+
+  await Promise.all(
+    unique.map(async (uid) => {
+      try {
+        const snap = await getDoc(doc(db, 'users', uid));
+        if (!snap.exists()) {
+          out[uid] = { uid };
+          return;
+        }
+        const d = snap.data();
+        out[uid] = {
+          uid,
+          name: typeof d.name === 'string' ? d.name : undefined,
+          email: typeof d.email === 'string' ? d.email : undefined,
+          phone: typeof d.phone === 'string' ? d.phone : undefined,
+        };
+      } catch {
+        out[uid] = { uid };
+      }
+    })
+  );
+
+  return out;
+};
+
+export const getAllOrders = async (filters?: { status?: string }): Promise<Order[]> => {
   try {
     let q = query(collection(db, 'orders'), orderBy('createdAt', 'desc'));
 
@@ -84,23 +118,8 @@ export const getAllOrders = async (filters?: {
     const querySnapshot = await getDocs(q);
     const orders: Order[] = [];
 
-    querySnapshot.forEach((doc) => {
-      const order = { id: doc.id, ...doc.data() } as Order;
-
-      // Client-side search filter
-      if (filters?.search) {
-        const searchLower = filters.search.toLowerCase();
-        const matchesId = order.id.toLowerCase().includes(searchLower);
-        const matchesItems = order.items.some((item) =>
-          item.name.toLowerCase().includes(searchLower)
-        );
-
-        if (!matchesId && !matchesItems) {
-          return;
-        }
-      }
-
-      orders.push(order);
+    querySnapshot.forEach((docSnap) => {
+      orders.push({ id: docSnap.id, ...docSnap.data() } as Order);
     });
 
     return orders;
