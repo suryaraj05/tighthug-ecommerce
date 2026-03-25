@@ -34,11 +34,8 @@ export const uploadImageToCloudinary = async (
 
     const xhr = new XMLHttpRequest();
 
-    xhr.upload.addEventListener('progress', (e) => {
-      if (e.lengthComputable) {
-        const percentComplete = (e.loaded / e.total) * 100;
-        console.log(`Upload progress: ${percentComplete.toFixed(2)}%`);
-      }
+    xhr.upload.addEventListener('progress', () => {
+      /* progress available via e.loaded / e.total if UI needs it */
     });
 
     xhr.addEventListener('load', () => {
@@ -53,13 +50,13 @@ export const uploadImageToCloudinary = async (
         try {
           const errorResponse = JSON.parse(xhr.responseText);
           const errorMessage = errorResponse.error?.message || `Upload failed with status: ${xhr.status}`;
-          console.error('Cloudinary upload error:', errorResponse);
-          console.error('Upload preset:', CLOUDINARY_UPLOAD_PRESET);
-          console.error('Cloud name:', CLOUDINARY_CLOUD_NAME);
           reject(new Error(errorMessage));
         } catch {
-          console.error('Cloudinary upload failed. Response:', xhr.responseText);
-          reject(new Error(`Upload failed with status: ${xhr.status}. Make sure the upload preset "${CLOUDINARY_UPLOAD_PRESET}" is configured as "unsigned" in Cloudinary.`));
+          reject(
+            new Error(
+              `Upload failed with status: ${xhr.status}. Make sure the upload preset "${CLOUDINARY_UPLOAD_PRESET}" is configured as "unsigned" in Cloudinary.`
+            )
+          );
         }
       }
     });

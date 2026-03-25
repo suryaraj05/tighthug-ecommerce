@@ -64,8 +64,7 @@ const ReviewModal = ({
       const reviewed = await hasUserReviewedProduct(user.uid, productId);
       setHasReviewed(reviewed);
       setCanReview(!reviewed);
-    } catch (error) {
-      console.error('Error checking review status:', error);
+    } catch {
       setCanReview(true);
     } finally {
       setChecking(false);

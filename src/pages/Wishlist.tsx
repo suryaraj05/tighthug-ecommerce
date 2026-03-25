@@ -24,8 +24,8 @@ const Wishlist = () => {
       const productPromises = items.map((item) => getProductById(item.productId));
       const productResults = await Promise.all(productPromises);
       setProducts(productResults.filter((p): p is Product => p !== null));
-    } catch (error) {
-      console.error('Failed to load wishlist products:', error);
+    } catch {
+      setProducts([]);
     } finally {
       setLoading(false);
     }

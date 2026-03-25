@@ -25,6 +25,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -232,8 +233,7 @@ const ProductManager = () => {
           try {
             await createProduct(product);
             successCount++;
-          } catch (error) {
-            console.error('Error creating product:', error);
+          } catch {
             errorCount++;
           }
         }
@@ -469,6 +469,11 @@ const ProductManager = () => {
               <DialogTitle>
                 {editingProduct ? 'Edit Product' : 'Add New Product'}
               </DialogTitle>
+              <DialogDescription>
+                {editingProduct
+                  ? 'Update product details, images, and inventory.'
+                  : 'Create a new catalog item with pricing, category, and stock.'}
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -792,6 +797,9 @@ const ProductManager = () => {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Bulk Upload Products (CSV)</DialogTitle>
+              <DialogDescription>
+                Upload a CSV file to create multiple products at once.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>

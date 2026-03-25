@@ -84,7 +84,6 @@ const Shop = () => {
 
       setProducts(result.products);
     } catch (err: any) {
-      console.error('Error loading products:', err);
       setError(err.message || 'Failed to load products');
       toast.error('Failed to load products', {
         description: err.message,

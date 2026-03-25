@@ -111,8 +111,8 @@ const Checkout = () => {
         await updateUserProfile({
           phone: address.phone,
         });
-      } catch (error) {
-        console.error('Failed to update user profile:', error);
+      } catch {
+        /* optional */
       }
 
       triggerOrderConfetti();

@@ -82,8 +82,8 @@ const ProductDetail = () => {
         try {
           const related = await getProductsByCategory(productData.category);
           setRelatedProducts(related.filter((p) => p.id !== id).slice(0, 4));
-        } catch (error) {
-          console.error('Failed to load related products:', error);
+        } catch {
+          /* optional */
         }
       }
     } catch (error: any) {
@@ -106,8 +106,8 @@ const ProductDetail = () => {
       ]);
       setReviews(reviewsData);
       setRatingStats(stats);
-    } catch (error) {
-      console.error('Failed to load reviews:', error);
+    } catch {
+      /* optional */
     } finally {
       setLoadingReviews(false);
     }

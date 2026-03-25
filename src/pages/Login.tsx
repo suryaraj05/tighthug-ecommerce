@@ -76,8 +76,7 @@ const Login = () => {
           },
         });
         if (!cancelled) setRecaptchaVerifier(v);
-      } catch (e) {
-        console.error(e);
+      } catch {
         if (!cancelled) {
           setError('Could not load reCAPTCHA. Refresh the page and try again.');
         }

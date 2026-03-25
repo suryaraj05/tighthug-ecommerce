@@ -81,8 +81,8 @@ export const createOrder = async (data: CreateOrderData): Promise<string> => {
           // Don't exceed subtotal
           discountAmount = Math.min(discountAmount, subtotal);
         }
-      } catch (error) {
-        console.error('Failed to apply coupon:', error);
+      } catch {
+        /* coupon optional */
       }
     }
 
@@ -127,12 +127,11 @@ export const createOrder = async (data: CreateOrderData): Promise<string> => {
               updatedAt: serverTimestamp(),
             });
           }
-        } catch (error) {
-          console.error('Failed to update coupon usage:', error);
+        } catch {
+          /* non-fatal */
         }
       }
-    } catch (error) {
-      console.error('Failed to update user profile:', error);
+    } catch {
       // Don't fail the order if profile update fails
     }
 
@@ -149,10 +148,9 @@ export const createOrder = async (data: CreateOrderData): Promise<string> => {
           total,
           items: data.items,
           shippingAddress: data.shippingAddress,
-        }).catch(console.error);
+        }).catch(() => {});
       }
-    } catch (error) {
-      console.error('Failed to send order confirmation email:', error);
+    } catch {
       // Don't fail the order if email fails
     }
 
@@ -182,16 +180,6 @@ export const getUserOrders = async (userId: string): Promise<Order[]> => {
 
     return orders;
   } catch (error: any) {
-    // Handle index errors
-    if (error.code === 'failed-precondition' || error.message?.includes('index')) {
-      const errorMessage = error.message || '';
-      const indexMatch = errorMessage.match(/https:\/\/console\.firebase\.google\.com[^\s]+/);
-      
-      if (indexMatch) {
-        console.error('🔗 Create index for orders (userId + createdAt):', indexMatch[0]);
-        console.error('📖 See FIRESTORE_INDEXES_GUIDE.md for instructions');
-      }
-    }
     throw new Error(error.message || 'Failed to fetch user orders');
   }
 };
@@ -247,11 +235,10 @@ export const updateOrderStatus = async (
             orderId,
             status,
             orderData.trackingId || undefined
-          ).catch(console.error);
+          ).catch(() => {});
         }
       }
-    } catch (error) {
-      console.error('Failed to send status update email:', error);
+    } catch {
       // Don't fail the status update if email fails
     }
   } catch (error: any) {

@@ -152,10 +152,6 @@ export const sendPhoneOTPWithVerifier = async (
     );
   }
 
-  if (import.meta.env.DEV) {
-    console.info('[PhoneAuth] signInWithPhoneNumber', { phoneE164: normalized });
-  }
-
   try {
     return await signInWithPhoneNumber(auth, normalized, verifier);
   } finally {
@@ -313,7 +309,7 @@ export const finalizePhoneSignupHybrid = async (
   useAuthStore.getState().setFirebaseUser(finalUser);
   useAuthStore.getState().setIsAdmin(false);
 
-  sendWelcomeEmail(syntheticEmail, name).catch(console.error);
+  sendWelcomeEmail(syntheticEmail, name).catch(() => {});
 };
 
 export const signup = async (data: SignupData): Promise<User> => {
@@ -358,7 +354,7 @@ export const signup = async (data: SignupData): Promise<User> => {
     useAuthStore.getState().setIsAdmin(false);
 
     // Send welcome email (non-blocking)
-    sendWelcomeEmail(user.email || '', data.name).catch(console.error);
+    sendWelcomeEmail(user.email || '', data.name).catch(() => {});
 
     return user;
   } catch (error: any) {
@@ -485,7 +481,7 @@ export const loginWithGoogle = async (): Promise<User> => {
 
     // Send welcome email for first-time Google sign-in (non-blocking)
     if (!userDoc.exists()) {
-      sendWelcomeEmail(user.email || '', user.displayName || 'User').catch(console.error);
+      sendWelcomeEmail(user.email || '', user.displayName || 'User').catch(() => {});
     }
 
     return user;
@@ -576,8 +572,7 @@ export const initAuth = (): (() => void) => {
         }
         
         useAuthStore.getState().setFirebaseUser(firebaseUser);
-      } catch (error) {
-        console.error('Error fetching user data:', error);
+      } catch {
         useAuthStore.getState().setError('Failed to load user data');
       }
     } else {

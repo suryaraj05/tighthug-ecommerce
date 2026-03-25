@@ -5,7 +5,6 @@
  * Access it at /index-helper (optional route)
  */
 
-import { useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ExternalLink, Copy, Check } from 'lucide-react';
@@ -25,23 +24,6 @@ const IndexHelper = () => {
     toast.success('Link copied to clipboard!');
     setTimeout(() => setCopiedIndex(null), 2000);
   };
-
-  useEffect(() => {
-    // Log all links to console on mount
-    console.group('🔥 Firestore Index Creation Links');
-    console.log(`Project ID: ${projectId}`);
-    console.log('\n📦 Products Collection:');
-    console.log('1. Category + CreatedAt:', links.productsCategoryCreatedAt);
-    console.log('2. Season + CreatedAt:', links.productsSeasonCreatedAt);
-    console.log('3. Category + Price (Asc):', links.productsCategoryPriceAsc);
-    console.log('\n📋 Orders Collection:');
-    console.log('4. UserId + CreatedAt:', links.ordersUserIdCreatedAt);
-    console.log('5. Status + CreatedAt:', links.ordersStatusCreatedAt);
-    console.log('\n⭐ Reviews Collection:');
-    console.log('6. ProductId + CreatedAt:', links.reviewsProductIdCreatedAt);
-    console.log('\n📊 All Indexes:', allIndexesUrl);
-    console.groupEnd();
-  }, []);
 
   const indexes = [
     {

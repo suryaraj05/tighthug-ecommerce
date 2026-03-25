@@ -43,8 +43,7 @@ const ReviewForm = ({ productId, onReviewSubmitted }: ReviewFormProps) => {
       setCanReview(purchased && !reviewed);
       setHasReviewed(reviewed);
       setChecking(false);
-    } catch (error) {
-      console.error('Error checking review eligibility:', error);
+    } catch {
       setCanReview(false);
       setChecking(false);
     }

@@ -30,8 +30,8 @@ const FinanceControl = () => {
     try {
       const data = await getFinanceData();
       setFinanceData(data);
-    } catch (error: any) {
-      console.error('Failed to load finance data:', error);
+    } catch {
+      setFinanceData(null);
     } finally {
       setLoading(false);
     }

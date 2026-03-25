@@ -63,8 +63,8 @@ const OrderHistory = () => {
       }
       
       setReviewedProducts(reviewed);
-    } catch (error) {
-      console.error('Failed to load reviewed products:', error);
+    } catch {
+      /* optional */
     }
   };
 
@@ -104,8 +104,8 @@ const OrderHistory = () => {
       try {
         const tracking = await getShippingByOrderId(orderId);
         setTrackingData((prev) => ({ ...prev, [orderId]: tracking }));
-      } catch (err) {
-        console.error('Failed to load tracking:', err);
+      } catch {
+        /* optional */
       }
     }
   };

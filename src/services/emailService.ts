@@ -89,9 +89,7 @@ export const sendWelcomeEmail = async (email: string, name: string): Promise<voi
     };
 
     await addDoc(collection(db, 'mail'), emailDoc);
-    console.log('✅ Welcome email queued for:', email);
-  } catch (error) {
-    console.error('❌ Failed to send welcome email:', error);
+  } catch {
     // Don't throw - email failure shouldn't break signup flow
   }
 };
@@ -197,9 +195,7 @@ export const sendOrderConfirmationEmail = async (
     };
 
     await addDoc(collection(db, 'mail'), emailDoc);
-    console.log('✅ Order confirmation email queued for:', email);
-  } catch (error) {
-    console.error('❌ Failed to send order confirmation email:', error);
+  } catch {
     // Don't throw - email failure shouldn't break order flow
   }
 };
@@ -284,9 +280,7 @@ export const sendOrderStatusEmail = async (
     };
 
     await addDoc(collection(db, 'mail'), emailDoc);
-    console.log('✅ Order status email queued for:', email);
-  } catch (error) {
-    console.error('❌ Failed to send order status email:', error);
+  } catch {
     // Don't throw - email failure shouldn't break status update flow
   }
 };

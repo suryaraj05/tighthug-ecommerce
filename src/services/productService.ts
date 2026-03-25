@@ -160,7 +160,6 @@ export const getProducts = async (
   try {
     // SIMPLEST APPROACH: Fetch ALL products without any orderBy or complex queries
     // This avoids all index issues
-    console.log('Fetching all products from Firestore...');
     const q = query(collection(db, 'products'), limit(100));
     const querySnapshot = await getDocs(q);
     
@@ -173,21 +172,15 @@ export const getProducts = async (
       } as Product);
     });
 
-    console.log(`✅ Fetched ${allProducts.length} products from Firestore`);
-
     // Apply filters in memory
     const filtered = await filterProducts(allProducts);
-    console.log(`✅ After filtering: ${filtered.length} products`);
 
     // Sort in memory
     const sorted = sortProducts(filtered);
-    console.log(`✅ After sorting: ${sorted.length} products`);
 
     // Apply limit
     const limited = sorted.slice(0, limitCount);
     const hasMore = sorted.length > limitCount;
-
-    console.log(`✅ Returning ${limited.length} products`);
 
     return {
       products: limited,
@@ -195,21 +188,12 @@ export const getProducts = async (
       hasMore,
     };
   } catch (error: any) {
-    console.error('❌ Error fetching products:', error);
-    console.error('Error code:', error.code);
-    console.error('Error message:', error.message);
-    
-    // If there's an index error, show the link
     if (error.code === 'failed-precondition' || error.message?.includes('index')) {
       const errorMessage = error.message || '';
       const indexMatch = errorMessage.match(/https:\/\/console\.firebase\.google\.com[^\s]+/);
-      
+
       if (indexMatch) {
         const indexUrl = indexMatch[0];
-        console.error('🔗 Create index at:', indexUrl);
-        console.error('📖 See FIRESTORE_INDEXES_GUIDE.md for all required indexes');
-        
-        const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
         toast.error('Firestore Index Required', {
           description: 'A composite index is needed. Click the action button to create it.',
           duration: 15000,
@@ -220,24 +204,20 @@ export const getProducts = async (
             },
           },
         });
-        
-        // Also log to console with all index info
-        console.group('🔗 Firestore Index Creation');
-        console.log('Click this link to create the required index:');
-        console.log(indexUrl);
-        if (projectId) {
-          console.log('\n📊 View all indexes:', `https://console.firebase.google.com/project/${projectId}/firestore/indexes`);
-        }
-        console.log('\n📖 See FIRESTORE_INDEXES_GUIDE.md for complete guide');
-        console.groupEnd();
       } else {
-        // Log all index links if no specific link found
-        import('@/utils/firestoreIndexHelper').then(({ logIndexLinks }) => {
-          logIndexLinks();
+        import('@/utils/firestoreIndexHelper').then(({ getFirestoreIndexesUrl }) => {
+          const url = getFirestoreIndexesUrl();
+          toast.error('Firestore index required', {
+            description: 'Create the composite index in Firebase Console.',
+            action: {
+              label: 'Indexes',
+              onClick: () => window.open(url, '_blank'),
+            },
+          });
         });
       }
     }
-    
+
     throw new Error(error.message || 'Failed to fetch products');
   }
 };

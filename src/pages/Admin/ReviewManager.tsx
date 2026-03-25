@@ -52,8 +52,7 @@ const ReviewManager = () => {
           try {
             const product = await getProductById(review.productId);
             return { ...review, product: product || undefined };
-          } catch (error) {
-            console.error(`Failed to load product for review ${review.id}:`, error);
+          } catch {
             return { ...review, product: undefined };
           }
         })

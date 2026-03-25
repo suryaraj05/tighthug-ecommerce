@@ -15,6 +15,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -188,6 +189,9 @@ const ContactResponses = () => {
           <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{selected?.subject}</DialogTitle>
+              <DialogDescription>
+                Contact form message from {selected?.name}.
+              </DialogDescription>
             </DialogHeader>
             {selected && (
               <div className="space-y-3 text-sm">

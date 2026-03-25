@@ -59,8 +59,7 @@ export const hasUserPurchasedProduct = async (
     }
     
     return false;
-  } catch (error) {
-    console.error('Error checking purchase:', error);
+  } catch {
     return false;
   }
 };
@@ -79,8 +78,7 @@ export const hasUserReviewedProduct = async (
     );
     const snapshot = await getDocs(q);
     return !snapshot.empty;
-  } catch (error) {
-    console.error('Error checking review:', error);
+  } catch {
     return false;
   }
 };
@@ -112,7 +110,6 @@ export const createReview = async (data: CreateReviewData): Promise<string> => {
     const docRef = await addDoc(collection(db, 'reviews'), reviewData);
     return docRef.id;
   } catch (error: any) {
-    console.error('Error creating review:', error);
     throw error;
   }
 };
@@ -157,12 +154,10 @@ export const getProductReviews = async (
         return allReviews
           .filter((review) => review.isApproved !== false) // Show if approved or undefined (legacy)
           .slice(0, limitCount);
-      } catch (fallbackError) {
-        console.error('Error fetching reviews (fallback):', fallbackError);
+      } catch {
         return [];
       }
     }
-    console.error('Error fetching reviews:', error);
     return [];
   }
 };
@@ -199,8 +194,7 @@ export const getProductAverageRating = async (productId: string): Promise<{
     });
 
     return { average, total, distribution };
-  } catch (error) {
-    console.error('Error calculating average rating:', error);
+  } catch {
     return { average: 0, total: 0, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } };
   }
 };
@@ -218,7 +212,6 @@ export const markReviewHelpful = async (reviewId: string): Promise<void> => {
       });
     }
   } catch (error) {
-    console.error('Error marking review helpful:', error);
     throw error;
   }
 };
@@ -232,7 +225,6 @@ export const toggleReviewApproval = async (reviewId: string, isApproved: boolean
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
-    console.error('Error toggling review approval:', error);
     throw error;
   }
 };
@@ -251,8 +243,7 @@ export const getAllProductReviews = async (productId: string): Promise<Review[]>
       id: doc.id,
       ...doc.data(),
     })) as Review[];
-  } catch (error: any) {
-    console.error('Error fetching all reviews:', error);
+  } catch {
     return [];
   }
 };
@@ -282,8 +273,7 @@ export const getAllReviews = async (): Promise<Review[]> => {
         const bDate = b.createdAt?.toDate?.() || new Date(0);
         return bDate.getTime() - aDate.getTime();
       });
-    } catch (fallbackError) {
-      console.error('Error fetching all reviews:', fallbackError);
+    } catch {
       return [];
     }
   }

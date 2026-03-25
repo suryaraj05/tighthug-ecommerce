@@ -1,25 +1,12 @@
 // Analytics service for tracking page views and user actions
 // Can be integrated with Google Analytics, Firebase Analytics, or custom tracking
 
-export const trackPageView = (pageName: string, additionalData?: Record<string, any>) => {
-  // Implement page view tracking
-  console.log('Page view:', pageName, additionalData);
-  
-  // Example: Send to Firebase Analytics
-  // import { logEvent } from 'firebase/analytics';
-  // logEvent(analytics, 'page_view', { page_name: pageName, ...additionalData });
+export const trackPageView = (_pageName: string, _additionalData?: Record<string, any>) => {
+  // Wire to Firebase Analytics / GA when ready
 };
 
-export const trackEvent = (
-  eventName: string,
-  eventData?: Record<string, any>
-) => {
-  // Implement event tracking
-  console.log('Event:', eventName, eventData);
-  
-  // Example: Send to Firebase Analytics
-  // import { logEvent } from 'firebase/analytics';
-  // logEvent(analytics, eventName, eventData);
+export const trackEvent = (_eventName: string, _eventData?: Record<string, any>) => {
+  // Wire to Firebase Analytics / GA when ready
 };
 
 export const trackConversion = (conversionType: string, value?: number) => {

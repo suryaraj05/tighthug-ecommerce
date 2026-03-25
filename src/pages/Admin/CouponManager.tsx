@@ -25,6 +25,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -297,6 +298,9 @@ const CouponManager = () => {
               <DialogTitle>
                 {editingCoupon ? 'Edit Coupon' : 'Add New Coupon'}
               </DialogTitle>
+              <DialogDescription>
+                Set discount rules, validity dates, and usage limits for checkout.
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">

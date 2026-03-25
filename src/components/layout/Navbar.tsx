@@ -46,8 +46,8 @@ const Navbar = () => {
     try {
       const result = await getAllProducts();
       setSearchProducts(result);
-    } catch (error) {
-      console.error('Failed to load products for search:', error);
+    } catch {
+      setSearchProducts([]);
     } finally {
       setLoadingProducts(false);
     }
@@ -57,8 +57,8 @@ const Navbar = () => {
     try {
       await logout();
       navigate('/');
-    } catch (error) {
-      console.error('Logout error:', error);
+    } catch {
+      /* logout already attempted */
     }
   };
 

@@ -124,16 +124,6 @@ export const getAllOrders = async (filters?: { status?: string }): Promise<Order
 
     return orders;
   } catch (error: any) {
-    // Handle index errors
-    if (error.code === 'failed-precondition' || error.message?.includes('index')) {
-      const errorMessage = error.message || '';
-      const indexMatch = errorMessage.match(/https:\/\/console\.firebase\.google\.com[^\s]+/);
-      
-      if (indexMatch) {
-        console.error('🔗 Create index for orders (status + createdAt):', indexMatch[0]);
-        console.error('📖 See FIRESTORE_INDEXES_GUIDE.md for instructions');
-      }
-    }
     throw new Error(error.message || 'Failed to fetch orders');
   }
 };

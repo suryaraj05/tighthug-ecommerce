@@ -24,12 +24,10 @@ const Modal = ({ isOpen, onClose, title, children, size = 'md' }: ModalProps) =>
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={sizeClasses[size]}>
-        {title && (
-          <DialogHeader>
-            <DialogTitle>{title}</DialogTitle>
-          </DialogHeader>
-        )}
+      <DialogContent className={sizeClasses[size]} aria-describedby={undefined}>
+        <DialogHeader>
+          <DialogTitle className={title ? undefined : 'sr-only'}>{title || 'Dialog'}</DialogTitle>
+        </DialogHeader>
         {children}
       </DialogContent>
     </Dialog>

@@ -47,8 +47,8 @@ const Analytics = () => {
     try {
       const analyticsData = await getAnalyticsData(dateRange);
       setData(analyticsData);
-    } catch (error: any) {
-      console.error('Failed to load analytics:', error);
+    } catch {
+      /* toast handled by caller if needed */
     } finally {
       setLoading(false);
     }
